@@ -48,7 +48,7 @@ class BinaryEngine(
             File(context.getExternalFilesDir(null) ?: context.filesDir, "dsmcp_output").apply { mkdirs() }
         }
         Log.i(TAG, "Output directory: ${dir.absolutePath}")
-        dir
+        return dir
     }
 
     /** 更新工作目录路径（由 EngineProvider 在用户选择工作目录后调用） */
