@@ -28,7 +28,7 @@ jobs:
 
     steps:
       - name: 检出代码 (Checkout)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 验证 arm64-v8a 预编译 so (Verify native libs)
         run: |
@@ -39,14 +39,14 @@ jobs:
           find app/libs -name '*.jar' -exec ls -lh {} \; 2>/dev/null || echo "警告: libs 目录为空或不存在"
 
       - name: 配置 JDK 17 (Setup JDK)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: gradle
 
       - name: 配置 Gradle (Setup Gradle)
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5
         with:
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
@@ -142,7 +142,7 @@ jobs:
           echo "apk_name=$(basename ${APK_PATH})" >> $GITHUB_OUTPUT
 
       - name: 上传 APK 产物 (Upload APK)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ steps.collect.outputs.apk_name || 'apk-arm64-v8a' }}
           path: apk-output/*.apk
@@ -151,7 +151,7 @@ jobs:
 
       - name: 创建 GitHub Release (发布版本)
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: apk-output/*.apk
           generate_release_notes: true
