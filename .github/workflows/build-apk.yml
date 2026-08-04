@@ -142,7 +142,7 @@ jobs:
           echo "apk_name=$(basename ${APK_PATH})" >> $GITHUB_OUTPUT
 
       - name: 上传 APK 产物 (Upload APK)
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ steps.collect.outputs.apk_name || 'apk-arm64-v8a' }}
           path: apk-output/*.apk
