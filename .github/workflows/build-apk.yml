@@ -1,0 +1,157 @@
+name: Build arm64-v8a APK
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: '构建类型 (Build type)'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: 检出代码 (Checkout)
+        uses: actions/checkout@v4
+
+      - name: 验证 arm64-v8a 预编译 so (Verify native libs)
+        run: |
+          echo "=== jniLibs 内容 ==="
+          find app/src/main/jniLibs -name '*.so' -exec ls -lh {} \; || echo "警告: jniLibs 目录为空或不存在"
+          echo ""
+          echo "=== libs 内容 ==="
+          find app/libs -name '*.jar' -exec ls -lh {} \; 2>/dev/null || echo "警告: libs 目录为空或不存在"
+
+      - name: 配置 JDK 17 (Setup JDK)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: 配置 Gradle (Setup Gradle)
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+
+      - name: 确定构建类型 (Determine build type)
+        id: build_type
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "type=${{ inputs.build_type }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "type=release" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            echo "type=release" >> $GITHUB_OUTPUT
+          else
+            echo "type=debug" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 准备签名密钥 (Prepare signing keystore)
+        if: steps.build_type.outputs.type == 'release'
+        run: |
+          # 如果仓库中没有 keystore.properties 或 keystore 文件，从 secrets 中恢复
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release/so-reverse-mcp-release.jks
+            echo "已从 GitHub Secrets 恢复签名密钥"
+          fi
+          if [ -n "${{ secrets.KEYSTORE_PROPERTIES }}" ]; then
+            echo "${{ secrets.KEYSTORE_PROPERTIES }}" > release/keystore.properties
+            echo "已从 GitHub Secrets 恢复密钥配置"
+          fi
+          # 验证签名文件存在
+          if [ ! -f release/so-reverse-mcp-release.jks ]; then
+            echo "错误: 签名密钥文件不存在"
+            echo "请在仓库 Settings → Secrets 中配置 KEYSTORE_BASE64 和 KEYSTORE_PROPERTIES"
+            echo "或将签名文件提交到 release/ 目录"
+            exit 1
+          fi
+
+      - name: 构建 arm64-v8a APK (Build APK)
+        run: |
+          BUILD_TYPE="${{ steps.build_type.outputs.type }}"
+          echo "构建类型: ${BUILD_TYPE}"
+          chmod +x gradlew
+          ./gradlew \
+            "assembleArm64V8a${BUILD_TYPE^}" \
+            --no-daemon \
+            --stacktrace
+
+      - name: 收集 APK 产物 (Collect APK artifacts)
+        id: collect
+        run: |
+          BUILD_TYPE="${{ steps.build_type.outputs.type }}"
+          
+          echo "=== 查找 APK ==="
+          # ABI split 输出目录可能是 arm64V8a 或 arm64-v8a，两种都搜索
+          APK_FOUND=""
+          for DIR in \
+            "app/build/outputs/apk/arm64V8a/${BUILD_TYPE}" \
+            "app/build/outputs/apk/arm64-v8a/${BUILD_TYPE}" \
+            "app/build/outputs/apk/${BUILD_TYPE}"; do
+            if [ -d "${DIR}" ]; then
+              echo "找到输出目录: ${DIR}"
+              find "${DIR}" -name '*.apk' -exec ls -lh {} \;
+              APK_FOUND="${DIR}"
+              break
+            fi
+          done
+          
+          if [ -z "${APK_FOUND}" ]; then
+            echo "错误: 未找到 APK 输出目录"
+            echo "已搜索的目录:"
+            echo "  app/build/outputs/apk/arm64V8a/${BUILD_TYPE}"
+            echo "  app/build/outputs/apk/arm64-v8a/${BUILD_TYPE}"
+            echo "  app/build/outputs/apk/${BUILD_TYPE}"
+            echo ""
+            echo "实际构建输出:"
+            find app/build/outputs -type f 2>/dev/null | head -20 || echo "(无输出)"
+            exit 1
+          fi
+          
+          # 复制 APK 到统一输出目录
+          mkdir -p apk-output
+          find "${APK_FOUND}" -name '*.apk' -exec cp {} apk-output/ \;
+          
+          # 列出最终产物
+          echo ""
+          echo "=== 最终 APK 产物 ==="
+          ls -lh apk-output/
+          
+          # 输出 APK 路径供后续步骤使用
+          APK_PATH=$(find apk-output -name '*.apk' -print -quit)
+          echo "apk_path=${APK_PATH}" >> $GITHUB_OUTPUT
+          echo "apk_name=$(basename ${APK_PATH})" >> $GITHUB_OUTPUT
+
+      - name: 上传 APK 产物 (Upload APK)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.collect.outputs.apk_name || 'apk-arm64-v8a' }}
+          path: apk-output/*.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: 创建 GitHub Release (发布版本)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: apk-output/*.apk
+          generate_release_notes: true
+          draft: false
+          prerelease: false
