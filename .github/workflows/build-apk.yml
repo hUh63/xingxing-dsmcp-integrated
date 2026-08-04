@@ -88,10 +88,12 @@ jobs:
           BUILD_TYPE="${{ steps.build_type.outputs.type }}"
           echo "构建类型: ${BUILD_TYPE}"
           chmod +x gradlew
-          ./gradlew \
-            "assembleArm64V8a${BUILD_TYPE^}" \
-            --no-daemon \
-            --stacktrace
+          
+          # 项目 splits 只配了 arm64-v8a，直接用 assembleRelease/assembleDebug 即可
+          # 这等价于 assembleArm64V8aRelease 但兼容所有 AGP 版本的命名规则
+          TASK_NAME="assemble${BUILD_TYPE^}"
+          echo "构建任务: ${TASK_NAME}"
+          ./gradlew "${TASK_NAME}" --no-daemon --stacktrace
 
       - name: 收集 APK 产物 (Collect APK artifacts)
         id: collect
@@ -99,7 +101,7 @@ jobs:
           BUILD_TYPE="${{ steps.build_type.outputs.type }}"
           
           echo "=== 查找 APK ==="
-          # ABI split 输出目录可能是 arm64V8a 或 arm64-v8a，两种都搜索
+          # 搜索所有可能的输出目录
           APK_FOUND=""
           for DIR in \
             "app/build/outputs/apk/arm64V8a/${BUILD_TYPE}" \
