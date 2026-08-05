@@ -109,6 +109,8 @@ internal fun AnalyzeTab(
             EngineProvider.setWorkDirectory(context, uri)
             state.scannedTreeUri = null
             treeUriKey = uri.toString()
+            // 立即触发扫描，不依赖 LaunchedEffect 重新组合
+            launchSoScan(context, settings, state, scope, t.zh)
         }
     }
     val pickSoFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -170,6 +172,8 @@ internal fun AnalyzeTab(
             manualInfo = ""
             showWorkspaces = false
             treeUriKey = uri.toString()
+            // 立即触发扫描，不依赖 LaunchedEffect 重新组合
+            launchSoScan(context, settings, state, scope, t.zh)
         }
     }
 
@@ -565,7 +569,7 @@ internal fun AnalyzeTab(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        TextButton(onClick = { pickSoFile.launch(arrayOf("application/vnd.android.package-archive", "application/octet-stream")) }) {
+                        TextButton(onClick = { pickSoFile.launch(arrayOf("*/*")) }) {
                             Text(if (t.zh) "选择文件" else "Pick file")
                         }
                         TextButton(onClick = { pickSoFolder.launch(null) }) {

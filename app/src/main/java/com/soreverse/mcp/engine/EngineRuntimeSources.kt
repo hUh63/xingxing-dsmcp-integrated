@@ -9,6 +9,7 @@ import com.soreverse.mcp.nativecore.NativeEngine
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
@@ -65,16 +66,35 @@ internal fun EngineRuntime.listAvailableSos(prefix: String = "", limit: Int = 50
 
 internal fun EngineRuntime.open(path: String, temporary: Boolean): JSONObject = guarded {
     if (path.isBlank()) return@guarded err("INVALID_ARGUMENT", "Missing SO path. Pass path or filePath from so_open (action=list).", "path", path)
+    // 处理 content:// URI（SAF 文件选择器返回）：将文件复制到应用缓存目录后以本地路径打开。
+    val effectivePath = if (path.startsWith("content://")) {
+        try {
+            val uri = Uri.parse(path)
+            val fileName = uri.lastPathSegment?.substringAfterLast('/')?.substringBefore('?')
+                ?: "temp_${System.currentTimeMillis()}.so"
+            val safeName = if (fileName.endsWith(".so", ignoreCase = true)) fileName else "$fileName.so"
+            val tempFile = File(context.cacheDir, "picked_$safeName")
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(tempFile).use { output -> input.copyTo(output) }
+            } ?: return@guarded err("SO_NOT_FOUND", "Cannot open content URI: $path", "path", path)
+            tempFile.absolutePath
+        } catch (e: Exception) {
+            AppLog.e("Failed to copy content URI: ${e.message}")
+            return@guarded err("SO_NOT_FOUND", "Failed to read file from content URI: ${e.message}", "path", path)
+        }
+    } else {
+        path
+    }
     // 安全修复: 添加路径穿越校验，防止通过 ../ 访问设备上的任意文件。
     // 仅对本地文件路径（不含 ! 形式的 APK 条目路径）进行校验。
-    val localPath = path.substringBefore('!')
+    val localPath = effectivePath.substringBefore('!')
     if (localPath.startsWith("/")) {
         val pathError = com.soreverse.mcp.core.PathSafety.validate(localPath, null)
         if (pathError != null) {
             return@guarded err("PATH_UNSAFE", "Path validation failed: $pathError", "path", path)
         }
     }
-    val ws = openWorkspace(path, temporary)
+    val ws = openWorkspace(effectivePath, temporary)
     val elf = ws.elf
     val src = ws.source
     val symbolFunctions = (elf.symbols + elf.dynSymbols).filter { it.type == "FUNC" && !it.imported }.distinctBy { it.name to it.value }
@@ -212,8 +232,9 @@ internal fun EngineRuntime.resolveLocalSoSource(rawPath: String): SoSource? {
     if (!file.exists() || !file.isFile) return null
     val extDir = context.getExternalFilesDir(null)?.canonicalPath
     val intDir = context.filesDir.canonicalPath
+    val cacheDir = context.cacheDir.canonicalPath
     val canonical = runCatching { file.canonicalPath }.getOrDefault(rawPath)
-    if (listOfNotNull(extDir, intDir).none { canonical.startsWith(it) } || !file.name.endsWith(".so", ignoreCase = true)) return null
+    if (listOfNotNull(extDir, intDir, cacheDir).none { canonical.startsWith(it) } || !file.name.endsWith(".so", ignoreCase = true)) return null
     return SoSource(canonical, "build_output", file.name, file.length(), file.lastModified(), null)
 }
 
