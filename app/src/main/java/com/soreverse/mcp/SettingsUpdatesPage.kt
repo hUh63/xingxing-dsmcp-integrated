@@ -69,29 +69,6 @@ internal fun SettingsUpdatesPage(
         }
     }
 
-    fun downloadLatest() {
-        if (checking || downloading) return
-        checking = true
-        error = ""
-        status = if (t.zh) "正在获取最新版本信息…" else "Fetching latest release…"
-        scope.launch {
-            manager.fetchLatestRelease()
-                .onSuccess { latestRelease ->
-                    release = latestRelease
-                    onRelease(latestRelease)
-                    status = ""
-                    checking = false
-                    // 获取到 release 后立即开始下载
-                    startDownload(latestRelease, null)
-                }
-                .onFailure {
-                    error = it.message ?: if (t.zh) "获取版本信息失败" else "Failed to fetch release info"
-                    status = ""
-                    checking = false
-                }
-        }
-    }
-
     fun startDownload(update: GitHubRelease, forced: String?) {
         downloadJob?.cancel()
         downloading = true
@@ -150,6 +127,29 @@ internal fun SettingsUpdatesPage(
                 downloadPhase = ""
                 downloadJob = null
             }
+        }
+    }
+
+    fun downloadLatest() {
+        if (checking || downloading) return
+        checking = true
+        error = ""
+        status = if (t.zh) "正在获取最新版本信息…" else "Fetching latest release…"
+        scope.launch {
+            manager.fetchLatestRelease()
+                .onSuccess { latestRelease ->
+                    release = latestRelease
+                    onRelease(latestRelease)
+                    status = ""
+                    checking = false
+                    // 获取到 release 后立即开始下载
+                    startDownload(latestRelease, null)
+                }
+                .onFailure {
+                    error = it.message ?: if (t.zh) "获取版本信息失败" else "Failed to fetch release info"
+                    status = ""
+                    checking = false
+                }
         }
     }
 

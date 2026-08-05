@@ -43,7 +43,8 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 
-class McpHttpServer(private val context: Context, private val port: Int, private val host: String) {
+class McpHttpServer(private val context: Context, private val port: Int, private val host: String) : CoroutineScope {
+    override val coroutineContext = kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default
     private val startedAt = System.currentTimeMillis()
     private var engine: EmbeddedServer<*, *>? = null
     @Volatile private var heavyPermits = 1
@@ -114,12 +115,7 @@ class McpHttpServer(private val context: Context, private val port: Int, private
     fun start() {
         if (engine != null) return
         NativeEngine.select(SettingsStore(context).nativeBackend)
-        engine = embeddedServer(CIO, host = host, port = port, configure = {
-            // v2.1.0: CIO server timeout configuration
-            connectionGroupSize = 10
-            workerGroupSize = 4
-            connectionTimeout = 60_000L // soTimeout 60s
-        }) {
+        engine = embeddedServer(CIO, host = host, port = port) {
             routing {
                 // v2.1.0: CORS preflight OPTIONS handler
                 options("/mcp") {
