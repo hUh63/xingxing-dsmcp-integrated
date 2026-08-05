@@ -142,7 +142,7 @@ internal fun CommandHubScreen(
         listOf(
             Satellite("📖", if (zh) "反编译" else "Decompile", MainTab.Analyze, "decompile"),
             Satellite("🔓", if (zh) "脱壳" else "Unpack", MainTab.Analyze, "dynamic"),
-            Satellite("🧬", if (zh) "SO 分析" else "SO", MainTab.SoAnalyze, null),
+            Satellite("🧬", if (zh) "SO 分析" else "SO", MainTab.Analyze, "analyze"),
             Satellite("⚡", if (zh) "模拟" else "Emulate", MainTab.Analyze, "emulate"),
             Satellite("🎯", "Frida", MainTab.Analyze, "dynamic"),
             Satellite("📦", if (zh) "回编" else "Rebuild", MainTab.Analyze, "build"),
@@ -202,7 +202,7 @@ internal fun CommandHubScreen(
             zh = zh,
             settings = settings,
             onNavigateSettings = onNavigateSettings,
-            onAnalyze = { onNavigate(MainTab.SoAnalyze, null) },
+            onAnalyze = { onNavigate(MainTab.Analyze, "analyze") },
         )
 
         // 工具列表入口文本

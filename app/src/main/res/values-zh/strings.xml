@@ -31,12 +31,10 @@
     <string name="disclaimer">免责声明</string>
     <string name="disclaimer_body">本工具仅用于你有权分析的文件和设备环境。逆向、修改和分发第三方二进制可能受到法律、合同或平台规则限制，使用者自行承担合规责任。</string>
     <string name="about">关于</string>
-    <string name="about_body">塔菲逆核
-本地逆向工具聚合 MCP 网关
-把各类逆向工具聚合成一个 MCP 入口，配合玄星 AI 逆向助手一起用。
+    <string name="about_body">塔菲逆核，一个本地逆向工具聚合MCP网关，将各类逆向工具聚合成一个MCP入口。
 
-交流群：【玄星算力】</string>
-    <string name="join_qq_group">点击链接加入群聊【玄星算力】</string>
+交流群：【Taffy交流群】</string>
+    <string name="join_qq_group">点击链接加入群聊【Taffy交流群】</string>
     <string name="accept">我已阅读并同意</string>
     <string name="decline">退出</string>
     <string name="first_run_disclaimer_title">使用前请确认免责声明</string>

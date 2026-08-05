@@ -202,7 +202,7 @@ internal fun AnalyzeTab(
         ) {
             Row(Modifier.padding(horizontal = LocalUiMetrics.current.pagePad, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    if (state.scanning) (if (t.zh) "扫描中…" else "Scanning…") else if (state.soSources.isNotEmpty()) (if (t.zh) "共计 ${state.soSources.size} 个 SO 文件" else "${state.soSources.size} SO files") else (if (t.zh) "选择目录后自动扫描" else "Choose a directory to scan"),
+                    if (state.scanning) (if (t.zh) "扫描中…" else "Scanning…") else if (state.soSources.isNotEmpty()) (if (t.zh) "共计 ${state.soSources.size} 个 SO 文件" else "${state.soSources.size} SO files") else if (state.scannedTreeUri != null && state.message.isNotBlank()) state.message else (if (t.zh) "选择目录后自动扫描" else "Choose a directory to scan"),
                     Modifier.weight(1f),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium,
@@ -415,7 +415,7 @@ internal fun AnalyzeTab(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (state.workspaces.isEmpty()) {
-                        Text(if (t.zh) "暂无通过 MCP 打开的工作区。程序基础分析不会创建工作区。" else "No MCP workspaces. Basic analysis does not create workspaces.")
+                        Text(if (t.zh) "暂无通过 MCP 打开的工作区。\n\n工作区是通过 MCP 工具（如 mt_so_open）打开 SO 文件后创建的。程序基础分析不会创建工作区，AI 深度分析会自动创建。" else "No MCP workspaces.\n\nWorkspaces are created when SO files are opened via MCP tools (e.g., mt_so_open). Basic analysis does not create workspaces; AI deep analysis creates them automatically.")
                     } else {
                         state.workspaces.forEach { ws ->
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

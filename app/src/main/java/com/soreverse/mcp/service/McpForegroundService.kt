@@ -321,12 +321,12 @@ class McpForegroundService : Service() {
             gravity = Gravity.CENTER
             setPadding((14 * density).toInt(), (9 * density).toInt(), (14 * density).toInt(), (9 * density).toInt())
             background = GradientDrawable().apply {
-                setColor(Color.argb(238, 24, 30, 42))
-                setStroke((1 * density).toInt(), Color.argb(110, 255, 255, 255))
+                setColor(Color.argb(140, 24, 30, 42))
+                setStroke((1 * density).toInt(), Color.argb(80, 255, 255, 255))
                 cornerRadius = 999f
             }
             elevation = 8 * density
-            alpha = 0.85f
+            alpha = 0.7f
         }
         bubbleText = tv
         val type = if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE
@@ -349,7 +349,7 @@ class McpForegroundService : Service() {
         var moved = false
         var downTime = 0L
         val dragThresholdSq = 400f * 400f // 400px² drag threshold
-        val longPressTimeout = 4000L
+        val longPressTimeout = 1000L
 
         tv.setOnTouchListener { _, event ->
             when (event.actionMasked) {
@@ -363,7 +363,7 @@ class McpForegroundService : Service() {
                     moved = false
                     cancelScheduled()
                     if (!isCollapsed) {
-                        // Schedule long press: if still held after 500ms without moving, stop MCP
+                        // Schedule long press: if still held after 1000ms without moving, stop MCP
                         val lp = Runnable {
                             if (!moved) {
                                 AppLog.i("Floating long press: stopping MCP service")
@@ -520,7 +520,7 @@ class McpForegroundService : Service() {
                 val bgR = (24 + (targetR - 24) * blend).toInt()
                 val bgG = (30 + (targetG - 30) * blend).toInt()
                 val bgB = (42 + (targetB - 42) * blend).toInt()
-                val bgA = (238 + (255 - 238) * blend).toInt()
+                val bgA = (140 + (255 - 140) * blend).toInt()
                 (tv.background as? GradientDrawable)?.apply {
                     setColor(Color.argb(bgA, bgR, bgG, bgB))
                     cornerRadius = 999f

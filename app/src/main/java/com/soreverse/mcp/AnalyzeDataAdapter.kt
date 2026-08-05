@@ -110,7 +110,7 @@ internal fun loadSoSources(context: Context, limit: Int, zh: Boolean = false): P
     if (!payload.optBoolean("ok", true)) {
         return emptyList<SoSourceUi>() to payload.optJSONObject("error")?.optString("message", if (zh) "扫描失败" else "Scan failed").orEmpty()
     }
-    val items = payload.optJSONArray("items") ?: return emptyList<SoSourceUi>() to "0"
+    val items = payload.optJSONArray("items") ?: return emptyList<SoSourceUi>() to if (zh) "未找到 SO 文件" else "No SO files found"
     val sources = (0 until items.length()).mapNotNull { index ->
         val item = items.optJSONObject(index) ?: return@mapNotNull null
         SoSourceUi(
