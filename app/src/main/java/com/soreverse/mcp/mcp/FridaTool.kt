@@ -9,7 +9,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * 逆核: Frida 动态插桩工具(需 root)。
+ * 塔菲逆核: Frida 动态插桩工具(需 root)。
  *
  * 第一版提供 frida-server 生命周期管理 + 进程/应用枚举。
  * frida-server 以 libfrida_server.so 内置打包,root 启动后监听 127.0.0.1:27042,

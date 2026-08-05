@@ -211,7 +211,7 @@ internal fun SettingsUpdatesPage(
                             val file = downloadedFile
                             if (file != null) {
                                 if (!manager.install(file)) {
-                                    status = if (t.zh) "请允许逆核安装未知应用，返回后再次点击安装。" else "Allow NieHe to install unknown apps, then return and tap Install again."
+                                    status = if (t.zh) "请允许塔菲逆核安装未知应用，返回后再次点击安装。" else "Allow Taffy to install unknown apps, then return and tap Install again."
                                 }
                             } else if (!downloading) {
                                 startDownload(update, null)

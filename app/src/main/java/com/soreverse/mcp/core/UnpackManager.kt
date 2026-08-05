@@ -6,7 +6,7 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * 逆核: DEX 脱壳(内存 dump)。原理同 frida-dexdump —— 加固壳最终要把真实 dex
+ * 塔菲逆核: DEX 脱壳(内存 dump)。原理同 frida-dexdump —— 加固壳最终要把真实 dex
  * 解密加载进内存交给 ART,我们在 root 下扫描目标进程内存,把内存里的 dex
  * (magic = "dex\n0xx")整块 dump 出来,绕过磁盘上被加密/抽取的壳。
  *

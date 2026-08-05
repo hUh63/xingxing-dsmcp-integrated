@@ -233,7 +233,7 @@ class McpHttpServer(private val context: Context, private val port: Int, private
         call.respondBytesWriter(contentType = ContentType.Text.EventStream) {
             // Send initial SSE hello with session ID
             val endpoint = JSONObject().put("uri", "/mcp").put("method", "POST")
-            writeStringUtf8("event: endpoint\ndata: $endpoint\n\n: NieHe ready (session=$sessionId)\n\n")
+            writeStringUtf8("event: endpoint\ndata: $endpoint\n\n: Taffy ready (session=$sessionId)\n\n")
             flush()
 
             // Keep connection alive with heartbeats until timeout
@@ -281,7 +281,7 @@ class McpHttpServer(private val context: Context, private val port: Int, private
             val errResp = JSONObject()
                 .put("jsonrpc", "2.0")
                 .put("id", reqId ?: JSONObject.NULL)
-                .put("error", JSONObject().put("code", -32001).put("message", "Unauthorized: missing or invalid NieHe token"))
+                .put("error", JSONObject().put("code", -32001).put("message", "Unauthorized: missing or invalid Taffy token"))
             call.response.headers.append("WWW-Authenticate", "Bearer")
             call.respondText(errResp.toString(), ContentType.Application.Json, status = HttpStatusCode.Unauthorized)
             return
@@ -316,7 +316,7 @@ class McpHttpServer(private val context: Context, private val port: Int, private
 
     private fun serverDiscovery(): JSONObject = JSONObject()
         .put("ok", true)
-        .put("name", "NieHe")
+        .put("name", "Taffy")
         .put("protocol", "MCP JSON-RPC 2.0")
         .put("endpoint", "/mcp")
         .put("sseEndpoint", "/sse")
@@ -326,7 +326,7 @@ class McpHttpServer(private val context: Context, private val port: Int, private
 
     private fun sseHello(): String {
         val endpoint = JSONObject().put("uri", "/messages").put("method", "POST")
-        return "event: endpoint\ndata: $endpoint\n\n: NieHe ready\n\n"
+        return "event: endpoint\ndata: $endpoint\n\n: Taffy ready\n\n"
     }
 
     private fun dispatchBody(body: String): Any {
@@ -377,7 +377,7 @@ class McpHttpServer(private val context: Context, private val port: Int, private
                 .put("protocolVersion", "2025-06-18")
                 .put("capabilities", JSONObject()
                     .put("tools", JSONObject().put("listChanged", false)))
-                .put("serverInfo", JSONObject().put("name", "NieHe").put("version", BuildConfig.VERSION_NAME))
+                .put("serverInfo", JSONObject().put("name", "Taffy").put("version", BuildConfig.VERSION_NAME))
                 .put("_meta", JSONObject()
                     .put("builtInToolsAlwaysAdvertised", true)
                     .put("fullToolCount", ToolCatalog.ALL.size)
@@ -612,21 +612,25 @@ class McpHttpServer(private val context: Context, private val port: Int, private
         if (!settings.authEnabled) return true
         val token = settings.accessToken
         if (token.isBlank()) return true
+        // 优先检查 Authorization: Bearer <token> 头部（最安全）
         val auth = request.header("Authorization").orEmpty()
         val bearer = auth.removePrefix("Bearer").trim()
-        // 安全修复: 移除 URL 查询参数 Token 认证方式。
-        // URL 中的 token 会泄露到服务器日志、浏览器历史、代理日志和 Referer 头中。
-        // 仅保留 Authorization: Bearer <token> 头部认证方式。
-        return constantTimeEquals(bearer, token)
+        if (constantTimeEquals(bearer, token)) return true
+        // 兼容回退: 部分 MCP 客户端（如 Kotlin SDK）通过 URL 查询参数传递 token。
+        // 应用自身生成的 MCP URL 也包含 ?token=xxx，若不接受会导致客户端无法鉴权。
+        // 对于本地/局域网场景，URL token 泄露风险可接受；公网暴露场景建议仅用 Bearer。
+        val queryToken = request.queryParameters["token"].orEmpty()
+        if (queryToken.isNotBlank() && constantTimeEquals(queryToken, token)) return true
+        return false
     }
 
     private fun constantTimeEquals(candidate: String, secret: String): Boolean = tokenConstantTimeEquals(candidate, secret)
 
     private fun authError(): JSONObject =
-        JSONObject().put("jsonrpc", "2.0").put("id", JSONObject.NULL).put("error", JSONObject().put("code", -32001).put("message", "Unauthorized: missing or invalid NieHe token"))
+        JSONObject().put("jsonrpc", "2.0").put("id", JSONObject.NULL).put("error", JSONObject().put("code", -32001).put("message", "Unauthorized: missing or invalid Taffy token"))
 
     private fun requestTooLarge(maxBytes: Int): JSONObject =
-        JSONObject().put("jsonrpc", "2.0").put("id", JSONObject.NULL).put("error", JSONObject().put("code", -32002).put("message", "Request body is larger than configured NieHe limit").put("data", JSONObject().put("maxBytes", maxBytes)))
+        JSONObject().put("jsonrpc", "2.0").put("id", JSONObject.NULL).put("error", JSONObject().put("code", -32002).put("message", "Request body is larger than configured Taffy limit").put("data", JSONObject().put("maxBytes", maxBytes)))
 
     /**
      * Full tools/list payload built from `ToolCatalog.ALL`. Each entry's
@@ -796,7 +800,7 @@ class McpHttpServer(private val context: Context, private val port: Int, private
                 .put("use_bridged_tools_only_for", JSONArray(listOf("Open APK packages", "List lib/ directories inside APK", "Smali/AXML editing", "Signed APK build")))
                 .put("never_do", JSONArray(listOf("Use bridged APK tools to open SO files", "Use bridged tools to list SO files", "Use bridged APK tools for anything related to .so/.elf files")))
                 .put("workflow", "so_open (action=list) -> analyze_*/edit_* -> build_so [for SO tasks]\nsystem_control (action=apk_probe) -> ${apkBridge.bridgedPrefix()}open -> ${apkBridge.bridgedPrefix()}list -> ... -> ${apkBridge.bridgedPrefix()}build [for APK tasks]"))
-            .put("auth", "If token auth is enabled, send Authorization: Bearer <token> header. URL query token is no longer accepted for security.")
+            .put("auth", "If token auth is enabled, send Authorization: Bearer <token> header. URL query parameter ?token=xxx is also accepted for client compatibility.")
             .put("exposure", JSONObject()
                 .put("builtInToolsAlwaysAdvertised", true)
                 .put("advertisedCount", advertisedTools().length())

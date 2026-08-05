@@ -3,7 +3,7 @@ package com.soreverse.mcp.core
 import android.content.Context
 
 /**
- * 逆核: frida-server 生命周期管理(需 root)。
+ * 塔菲逆核: frida-server 生命周期管理(需 root)。
  *
  * frida-server 二进制以 libfrida_server.so 打包在 jniLibs/arm64-v8a(so 目录文件带执行权限)。
  * 启动流程(root):

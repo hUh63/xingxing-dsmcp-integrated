@@ -21,7 +21,7 @@ import java.security.cert.X509Certificate
 import java.util.Date
 
 /**
- * 逆核: APK 回编打包 + 签名(补齐 MT 管理器"改完装回去"的能力)。
+ * 塔菲逆核: APK 回编打包 + 签名(补齐 MT 管理器"改完装回去"的能力)。
  *  - smali_assemble: smali 目录 → dex(smali 库,反 baksmali)
  *  - apk_sign:       给 APK 做 v1/v2/v3 签名(apksig, 自动生成/复用内置签名密钥)
  *
@@ -48,7 +48,7 @@ object ApkBuildTool {
         val now = System.currentTimeMillis()
         val notBefore = Date(now - 24L * 3600 * 1000)
         val notAfter = Date(now + 30L * 365 * 24 * 3600 * 1000)
-        val dn = X500Name("CN=NieHe, O=Taffy, C=CN")
+        val dn = X500Name("CN=Taffy, O=Taffy, C=CN")
         val builder = JcaX509v3CertificateBuilder(
             dn, BigInteger.valueOf(now), notBefore, notAfter, dn, kp.public,
         )
@@ -134,7 +134,7 @@ object ApkBuildTool {
                     .put("tool", "apk_sign")
                     .put("success", true)
                     .put("outputApk", output)
-                    .put("signer", "CN=NieHe (内置自签名密钥)")
+                    .put("signer", "CN=Taffy (内置自签名密钥)")
                     .put("hint", "已签名,可直接安装。用内置密钥,与官方签名不同,覆盖安装原 App 需先卸载。"))
             }.getOrElse { e -> err("APK_SIGN_FAILED", "APK 签名失败: ${e.message ?: e.javaClass.simpleName}", "inputApk", inputPath) }
         }

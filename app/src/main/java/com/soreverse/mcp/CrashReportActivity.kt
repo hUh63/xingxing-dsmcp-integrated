@@ -52,7 +52,7 @@ class CrashReportActivity : ComponentActivity() {
             setBackgroundColor(Color.rgb(242, 242, 247))
             addView(
                 TextView(context).apply {
-                    text = "逆核发生崩溃"
+                    text = "塔菲逆核发生崩溃"
                     textSize = 22f
                     setTextColor(Color.rgb(28, 28, 30))
                     setTypeface(typeface, Typeface.BOLD)
@@ -126,7 +126,7 @@ class CrashReportActivity : ComponentActivity() {
     private fun copyAll() {
         runCatching {
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clipboard.setPrimaryClip(ClipData.newPlainText("NieHe crash report", report))
+            clipboard.setPrimaryClip(ClipData.newPlainText("Taffy crash report", report))
         }.onSuccess {
             Toast.makeText(this, "已复制完整崩溃信息", Toast.LENGTH_SHORT).show()
         }.onFailure {
@@ -136,7 +136,7 @@ class CrashReportActivity : ComponentActivity() {
 
     private fun showExitConfirmation() {
         AlertDialog.Builder(this)
-            .setTitle("退出逆核？")
+            .setTitle("退出塔菲逆核？")
             .setMessage("退出后主进程将继续执行系统默认崩溃流程。请先确认已经复制所需信息。")
             .setNegativeButton("继续查看", null)
             .setPositiveButton("退出应用") { _, _ -> confirmExit() }

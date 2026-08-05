@@ -54,7 +54,7 @@ import com.soreverse.mcp.service.McpForegroundService
 import kotlinx.coroutines.delay
 
 /**
- * 逆核 首页 — 小白向:一个大开关 + 状态 + 连接地址 + 三步引导。
+ * 塔菲逆核 首页 — 小白向:一个大开关 + 状态 + 连接地址 + 三步引导。
  * 底层完全复用现有逻辑(McpForegroundService / SettingsStore / filteredEndpoints)。
  */
 @Composable

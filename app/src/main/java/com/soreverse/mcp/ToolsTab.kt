@@ -28,7 +28,7 @@ import com.soreverse.mcp.core.SettingsStore
 import com.soreverse.mcp.mcp.ToolCatalog
 
 /**
- * 逆核 工具页 — 把所有内置 MCP 工具按分类列给用户看,小白能看懂每个工具干嘛。
+ * 塔菲逆核 工具页 — 把所有内置 MCP 工具按分类列给用户看,小白能看懂每个工具干嘛。
  * 数据来源 ToolCatalog.ALL(每个工具的中文/英文说明就是 meta.zh / meta.en)。
  *
  * @param toolCategory 若非 null，滚动定位到该分类位置（不过滤，仍显示所有工具）。

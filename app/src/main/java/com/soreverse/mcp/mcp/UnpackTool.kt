@@ -12,7 +12,7 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * 逆核: DEX 脱壳工具(需 root)。内存 dump 原理(frida-dexdump 同思路),
+ * 塔菲逆核: DEX 脱壳工具(需 root)。内存 dump 原理(frida-dexdump 同思路),
  * 从运行中的目标进程内存扫出解密后的真实 dex,绕过磁盘加固壳。
  *
  *  action:

@@ -25,10 +25,10 @@ object IntegrityGuard {
     @Volatile private var cached: Pair<Long, Result>? = null
 
     fun verify(context: Context): Result {
-        // NOTE(逆核): 二改版本禁用完整性/反调试守卫。IntegrityGate 用的是 verify().trusted,
+        // NOTE(塔菲逆核): 二改版本禁用完整性/反调试守卫。IntegrityGate 用的是 verify().trusted,
         // 所以必须在这里直接返回 trusted,否则二改签名会触发"完整性校验失败"并 10 秒强退。
         // 原逻辑保留在下方(未删除),需要时可恢复。
-        return Result(trusted = true, reason = "integrity guard disabled (逆核)", expected = "", actual = emptyList())
+        return Result(trusted = true, reason = "integrity guard disabled (塔菲逆核)", expected = "", actual = emptyList())
         @Suppress("UNREACHABLE_CODE")
         cached?.let { (time, result) ->
             if (System.currentTimeMillis() - time < 2_000L) return result
@@ -57,7 +57,7 @@ object IntegrityGuard {
         return result
     }
 
-    // NOTE(逆核): 二改版本禁用完整性/反调试守卫。
+    // NOTE(塔菲逆核): 二改版本禁用完整性/反调试守卫。
     // 原因: ①改包名/签名后作者的 EXPECTED_SIGNER_SHA256 必然不匹配, 会挡住服务启动;
     //       ②本 App 面向逆向场景(用户常开 root/frida/调试器), runtimeThreats() 的反注入检测会误伤正常使用。
     // 原逻辑保留在 verify() 中(未删除), 需要时可恢复。

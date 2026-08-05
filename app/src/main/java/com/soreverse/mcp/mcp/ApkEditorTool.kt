@@ -12,7 +12,7 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * 逆核: APKEditor 完整 APK 反编译/回编/合并/去混淆(纯 Java, aapt 无关, 基于 ARSCLib)。
+ * 塔菲逆核: APKEditor 完整 APK 反编译/回编/合并/去混淆(纯 Java, aapt 无关, 基于 ARSCLib)。
  * 补齐 MT 管理器"改完完整回编成 APK"的最后一环 —— smali_assemble 只出 dex, 这个能出完整 APK。
  *
  *  action:

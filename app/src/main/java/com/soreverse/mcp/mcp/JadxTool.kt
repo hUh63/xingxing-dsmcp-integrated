@@ -15,7 +15,7 @@ import java.io.File
 import java.nio.file.Path
 
 /**
- * 逆核: jadx dex→Java 反编译工具。
+ * 塔菲逆核: jadx dex→Java 反编译工具。
  *
  * 纯 Java 反编译引擎(io.github.skylot:jadx-core + jadx-dex-input),作为 MCP 工具直接内置,
  * 无需外部进程。输入 apk/dex/jar,输出可读 Java 源码。

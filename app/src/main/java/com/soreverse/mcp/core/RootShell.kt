@@ -7,7 +7,7 @@ import java.io.OutputStreamWriter
 import java.util.concurrent.TimeUnit
 
 /**
- * 逆核: root Shell 执行器。塔菲逆核面向逆向场景(用户默认已 root),
+ * 塔菲逆核: root Shell 执行器。塔菲逆核面向逆向场景(用户默认已 root),
  * 许多动态工具(frida-server 启动、进程注入、/data 读写)需要 root 权限。
  *
  * 提供两种用法:

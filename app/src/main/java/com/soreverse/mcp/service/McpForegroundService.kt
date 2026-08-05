@@ -69,7 +69,7 @@ class McpForegroundService : Service() {
                     // 保活模式：停止 MCP 服务但保留悬浮窗，显示"服务未启动"
                     createChannel()
                     val zh = settings.language == "zh" || (settings.language == "system" && Locale.getDefault().language == "zh")
-                    startForeground(1001, notification(if (zh) "逆核保活中 · 服务未启动" else "NieHe keep-alive · service off"))
+                    startForeground(1001, notification(if (zh) "塔菲逆核保活中 · 服务未启动" else "Taffy keep-alive · service off"))
                     updateFloating()
                     AppLog.i("MCP server stopped, keeping service alive for floating window")
                 } else {
@@ -83,7 +83,7 @@ class McpForegroundService : Service() {
                     // 服务未运行但悬浮窗已开启：启动前台服务保活
                     createChannel()
                     val zh = settings.language == "zh" || (settings.language == "system" && Locale.getDefault().language == "zh")
-                    startForeground(1001, notification(if (zh) "逆核保活中 · 服务未启动" else "NieHe keep-alive · service off"))
+                    startForeground(1001, notification(if (zh) "塔菲逆核保活中 · 服务未启动" else "Taffy keep-alive · service off"))
                 }
                 updateFloating()
             }
@@ -310,7 +310,7 @@ class McpForegroundService : Service() {
         val zh = settings.language == "zh" || (settings.language == "system" && Locale.getDefault().language == "zh")
         val density = resources.displayMetrics.density
         val isRunning = running
-        val statusText = if (isRunning) (if (zh) "● 逆核运行中" else "● NieHe running") else (if (zh) "● 服务未启动" else "● Service off")
+        val statusText = if (isRunning) (if (zh) "● 塔菲逆核运行中" else "● Taffy running") else (if (zh) "● 服务未启动" else "● Service off")
         val dotColor = if (isRunning) Color.argb(255, 52, 199, 89) else Color.argb(255, 255, 149, 0)
         val tv = TextView(this).apply {
             text = statusText
@@ -466,7 +466,7 @@ class McpForegroundService : Service() {
         val settings = SettingsStore(this)
         val zh = settings.language == "zh" || (settings.language == "system" && Locale.getDefault().language == "zh")
         val isRunning = running
-        val statusText = if (isRunning) (if (zh) "● 逆核运行中" else "● NieHe running") else (if (zh) "● 服务未启动" else "● Service off")
+        val statusText = if (isRunning) (if (zh) "● 塔菲逆核运行中" else "● Taffy running") else (if (zh) "● 服务未启动" else "● Service off")
         val dotColor = if (isRunning) Color.argb(255, 52, 199, 89) else Color.argb(255, 255, 149, 0)
 
         if (isCollapsed) {
@@ -559,7 +559,7 @@ class McpForegroundService : Service() {
         val settings = SettingsStore(this)
         val zh = settings.language == "zh" || (settings.language == "system" && Locale.getDefault().language == "zh")
         val isRunning = running
-        val statusText = if (isRunning) (if (zh) "● 逆核运行中" else "● NieHe running") else (if (zh) "● 服务未启动" else "● Service off")
+        val statusText = if (isRunning) (if (zh) "● 塔菲逆核运行中" else "● Taffy running") else (if (zh) "● 服务未启动" else "● Service off")
 
         ValueAnimator.ofFloat(0f, 1f).apply {
             duration = 250
@@ -642,7 +642,7 @@ class McpForegroundService : Service() {
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= 26) {
             val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-            nm.createNotificationChannel(NotificationChannel(CHANNEL_ID, "逆核", NotificationManager.IMPORTANCE_LOW))
+            nm.createNotificationChannel(NotificationChannel(CHANNEL_ID, "塔菲逆核", NotificationManager.IMPORTANCE_LOW))
         }
     }
 
@@ -664,7 +664,7 @@ class McpForegroundService : Service() {
     private fun notification(text: String): Notification {
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL_ID) else Notification.Builder(this)
         return builder
-            .setContentTitle("逆核")
+            .setContentTitle("塔菲逆核")
             .setContentText(text)
             .setSmallIcon(com.soreverse.mcp.R.drawable.ic_stat_somcp)
             .setOngoing(true)

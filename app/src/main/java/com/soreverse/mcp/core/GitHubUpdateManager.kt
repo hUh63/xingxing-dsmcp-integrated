@@ -128,7 +128,7 @@ class GitHubUpdateManager(private val context: Context) {
     }
 
     suspend fun check(): Result<UpdateCheckResult> = withContext(Dispatchers.IO) {
-        // NOTE(逆核): 二改版本禁用在线更新检测。原版指向作者仓库 bilieebiliee1-design/SOMCP,
+        // NOTE(塔菲逆核): 二改版本禁用在线更新检测。原版指向作者仓库 bilieebiliee1-design/SOMCP,
         // 二改后既不该给作者刷流量, 也不该被官方 release 覆盖。直接返回"当前即最新"。
         // 如需指向自己的仓库, 改 REPOSITORY_URL / LATEST_RELEASE_URL 并删除下面这行即可恢复原逻辑。
         return@withContext Result.success(UpdateCheckResult.Current)
