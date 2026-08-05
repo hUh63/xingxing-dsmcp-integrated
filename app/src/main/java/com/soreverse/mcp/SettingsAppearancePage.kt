@@ -114,6 +114,8 @@ internal fun SettingsAppearancePage(
         GlassGroup(title = if (t.zh) "字号" else "Text size") {
             ChipRow(
                 listOf(
+                    "xsmall" to if (t.zh) "特小" else "XS",
+                    "small" to if (t.zh) "小" else "Small",
                     "normal" to if (t.zh) "标准" else "Normal",
                     "large" to if (t.zh) "大" else "Large",
                     "xlarge" to if (t.zh) "特大" else "XL",

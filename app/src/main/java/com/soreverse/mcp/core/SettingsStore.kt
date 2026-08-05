@@ -136,12 +136,12 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean("highContrast", false)
         set(value) = prefs.edit().putBoolean("highContrast", value).apply()
 
-    /** Optional larger type scale multiplier: normal | large | xlarge */
+    /** Optional type scale multiplier: xsmall | small | normal | large | xlarge */
     var textScale: String
         get() = prefs.getString("textScale", "normal") ?: "normal"
         set(value) = prefs.edit().putString(
             "textScale",
-            if (value in setOf("normal", "large", "xlarge")) value else "normal",
+            if (value in setOf("xsmall", "small", "normal", "large", "xlarge")) value else "normal",
         ).apply()
 
     var predictiveBackEnabled: Boolean
@@ -905,7 +905,7 @@ class SettingsStore(context: Context) {
                 .put("uiDensity", enums("compact", "comfortable", "spacious"))
                 .put("cornerStyle", enums("small", "medium", "large", "xlarge"))
                 .put("motionMode", enums("system", "reduced", "full"))
-                .put("textScale", enums("normal", "large", "xlarge"))
+                .put("textScale", enums("xsmall", "small", "normal", "large", "xlarge"))
                 .put("language", enums("system", "zh", "en")))
             .put("notes", "Use app_config action=get|set|schema|reset_token. Nested groups or flat keys both work. Secret fields are masked on get.")
     }

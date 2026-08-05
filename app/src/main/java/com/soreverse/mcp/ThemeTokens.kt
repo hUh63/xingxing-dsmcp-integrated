@@ -75,6 +75,8 @@ internal fun uiMetrics(density: String, corner: String): UiMetrics {
 }
 
 internal fun textScaleFactor(textScale: String): Float = when (textScale) {
+    "xsmall" -> 0.88f
+    "small" -> 0.94f
     "large" -> 1.08f
     "xlarge" -> 1.16f
     else -> 1f
