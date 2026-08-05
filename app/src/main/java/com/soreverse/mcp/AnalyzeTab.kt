@@ -528,6 +528,24 @@ internal fun AnalyzeTab(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     } else {
+                        if (state.workspaces.isNotEmpty()) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                            ) {
+                                TextButton(onClick = {
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            state.workspaces.forEach { ws ->
+                                                EngineProvider.get(context).close(ws.id)
+                                                DeepReportStore.remove(context.applicationContext, ws.id)
+                                            }
+                                        }
+                                        state.workspaces = withContext(Dispatchers.IO) { loadWorkspaces(context.applicationContext) }
+                                    }
+                                }) { Text(if (t.zh) "全部清除" else "Clear all") }
+                            }
+                        }
                         state.workspaces.forEach { ws ->
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
@@ -545,7 +563,9 @@ internal fun AnalyzeTab(
                                 TextButton(onClick = {
                                     EngineProvider.get(context).close(ws.id)
                                     DeepReportStore.remove(context.applicationContext, ws.id)
-                                    state.workspaces = loadWorkspaces(context)
+                                    scope.launch {
+                                        state.workspaces = withContext(Dispatchers.IO) { loadWorkspaces(context.applicationContext) }
+                                    }
                                 }) { Text(if (t.zh) "关闭" else "Close") }
                             }
                         }

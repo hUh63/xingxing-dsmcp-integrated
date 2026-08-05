@@ -94,7 +94,7 @@ class SettingsStore(context: Context) {
         get() = prefs.getString("accentColor", "pink") ?: "pink"
         set(value) = prefs.edit().putString(
             "accentColor",
-            if (value in setOf("blue", "teal", "indigo", "purple", "green", "orange", "red", "pink", "mono")) value else "pink",
+            if (value in setOf("blue", "teal", "indigo", "purple", "green", "orange", "red", "yellow", "pink", "mono")) value else "pink",
         ).apply()
 
     /** true = pure black OLED dark background; false = elevated dark gray. */
@@ -901,7 +901,7 @@ class SettingsStore(context: Context) {
         return org.json.JSONObject()
             .put("appearance", org.json.JSONObject()
                 .put("themeMode", enums("system", "light", "dark"))
-                .put("accentColor", enums("blue", "teal", "indigo", "purple", "green", "orange", "red", "pink", "mono"))
+                .put("accentColor", enums("blue", "teal", "indigo", "purple", "green", "orange", "red", "yellow", "pink", "mono"))
                 .put("uiDensity", enums("compact", "comfortable", "spacious"))
                 .put("cornerStyle", enums("small", "medium", "large", "xlarge"))
                 .put("motionMode", enums("system", "reduced", "full"))

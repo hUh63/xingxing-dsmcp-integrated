@@ -78,7 +78,7 @@ android {
             isShrinkResources = true
             isDebuggable = false
             isJniDebuggable = false
-            buildConfigField("String", "EXPECTED_SIGNER_SHA256", "\"90FEDAC1F020C6C5D1DD1A635DB5C3B7579F5B87647E2C2C00966D3BCB0F8B6F\"")
+            buildConfigField("String", "EXPECTED_SIGNER_SHA256", "\"64083B8FC03F9D2566C3BFECD417988B5A4BDCA02B6B3ABF20BE87707C202E89\"")
             signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

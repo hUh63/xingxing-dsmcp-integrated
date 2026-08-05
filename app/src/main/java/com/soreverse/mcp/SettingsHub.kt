@@ -285,6 +285,13 @@ internal fun SettingsHub(
                     }
                     GlassGroup(title = if (t.zh) "开源许可与来源" else "License & origin") {
                         NavRow(
+                            "玄星逆核·GPL-3.0",
+                            "mt论坛 最强AI选手",
+                            Icons.Default.Info,
+                            onClick = { copy(aboutContext, "https://bbs.binmt.cc/home.php?mod=space&uid=124277&do=profile&view=me&from=space", t.copied) },
+                        )
+                        GroupDivider()
+                        NavRow(
                             "${com.soreverse.mcp.core.Provenance.PROJECT} · ${com.soreverse.mcp.core.Provenance.LICENSE}",
                             com.soreverse.mcp.core.Provenance.COPYRIGHT,
                             Icons.Default.Info,

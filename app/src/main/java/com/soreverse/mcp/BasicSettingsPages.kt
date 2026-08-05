@@ -285,10 +285,6 @@ internal fun SettingsAccessPage(t: UiText, settings: SettingsStore) {
                 {
                     bindHost = it
                     settings.bindHost = it
-                    if (it == "0.0.0.0" && !authEnabled) {
-                        authEnabled = true
-                        settings.authEnabled = true
-                    }
                 },
             )
         }
