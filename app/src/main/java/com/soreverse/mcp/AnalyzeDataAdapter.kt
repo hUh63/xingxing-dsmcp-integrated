@@ -126,6 +126,9 @@ internal fun loadSoSources(context: Context, limit: Int, zh: Boolean = false): P
     }
     val page = payload.optJSONObject("pagination")
     val more = if (page?.optBoolean("hasMore") == true) " + more" else ""
+    if (sources.isEmpty()) {
+        return sources to if (zh) "未找到 SO 文件" else "No SO files found"
+    }
     return sources to "${sources.size}$more"
 }
 

@@ -99,10 +99,10 @@ class ApkMcpBridge(private val settings: SettingsStore) {
                     probes = prev.probes + 1, probeFailures = prev.probeFailures + 1,
                     totalLatencyMs = prev.totalLatencyMs, maxLatencyMs = prev.maxLatencyMs)
                 state = s
-                // 连接拒绝（服务未运行）降级为 info，避免自动探测时刷屏
+                // 未运行时的日志保持 Warning 级别
                 val msg = e.message ?: ""
                 if (msg.contains("Failed to connect") || msg.contains("Connection refused") || msg.contains("ConnectException")) {
-                    AppLog.i("apk-mcp not running: $url")
+                    AppLog.w("apk-mcp not running: $url")
                 } else {
                     AppLog.w("apk-mcp probe failed: $url $msg")
                 }

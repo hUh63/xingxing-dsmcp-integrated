@@ -150,7 +150,7 @@ class McpHttpServer(private val context: Context, private val port: Int, private
                     // /health 端点仅返回最小化健康状态，不暴露服务器信息
                     call.respondText(JSONObject().put("ok", true).toString(), ContentType.Application.Json)
                 }
-                // v2.1.0: GET /mcp - return 405 without SSE Accept header
+                // GET /mcp - SSE if Accept: text/event-stream, otherwise return status page for browser testing
                 get("/mcp") {
                     if (!call.authorized()) {
                         call.respondText(authError().toString(), ContentType.Application.Json, status = HttpStatusCode.Unauthorized)
@@ -158,16 +158,12 @@ class McpHttpServer(private val context: Context, private val port: Int, private
                     }
                     val accept = call.request.header("Accept").orEmpty()
                     if (accept.contains("text/event-stream")) {
-                        // v2.1.0: SSE long connection with heartbeat
+                        // SSE long connection with heartbeat
                         handleSseConnection(call)
                     } else {
-                        // v2.1.0: Return 405 Method Not Allowed without SSE Accept
-                        call.respondText(
-                            JSONObject().put("error", "Method Not Allowed. Use POST for JSON-RPC or GET with Accept: text/event-stream for SSE.")
-                                .toString(),
-                            ContentType.Application.Json,
-                            status = HttpStatusCode.MethodNotAllowed
-                        )
+                        // Browser test: return a simple HTML status page
+                        val html = browserStatusHtml()
+                        call.respondText(html, ContentType.Text.Html)
                     }
                 }
                 get("/sse") {
@@ -323,6 +319,46 @@ class McpHttpServer(private val context: Context, private val port: Int, private
         .put("messagesEndpoint", "/messages")
         .put("methods", JSONArray(listOf("initialize", "notifications/initialized", "ping", "tools/list", "tools/call", "resources/list", "prompts/list")))
         .put("hint", "POST JSON-RPC to /mcp. GET /mcp with Accept: text/event-stream returns an SSE compatibility hello.")
+
+    private fun browserStatusHtml(): String {
+        val uptime = (System.currentTimeMillis() - startedAt) / 1000
+        val bridge = apkBridge.state()
+        val bridgeStatus = if (bridge.online) "Online (${bridge.tools.size} tools)" else "Offline"
+        val tunnelUrl = tunnel.status().publicUrl?.takeIf { it.isNotBlank() } ?: "Not configured"
+        return """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Taffy MCP Status</title>
+<style>
+body{font-family:system-ui,-apple-system,sans-serif;max-width:600px;margin:40px auto;padding:0 20px;background:#f5f5f5;color:#333}
+.card{background:#fff;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin-bottom:16px}
+h1{font-size:24px;margin:0 0 8px;color:#1a73e8}
+.status{display:inline-block;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:600}
+.ok{background:#e8f5e9;color:#2e7d32}
+.off{background:#fbe9e7;color:#c62828}
+.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee}
+.row:last-child{border:none}
+.label{color:#666;font-size:14px}
+.value{font-weight:500;font-size:14px}
+code{background:#f0f0f0;padding:2px 6px;border-radius:4px;font-size:13px}
+.hint{font-size:13px;color:#999;margin-top:16px}
+</style></head><body>
+<div class="card">
+<h1>Taffy MCP Server</h1>
+<span class="status ok">Running</span>
+<div class="row"><span class="label">Endpoint</span><span class="value"><code>$host:$port/mcp</code></span></div>
+<div class="row"><span class="label">Uptime</span><span class="value">${uptime}s</span></div>
+<div class="row"><span class="label">APK Bridge</span><span class="value">$bridgeStatus</span></div>
+<div class="row"><span class="label">Tunnel</span><span class="value">$tunnelUrl</span></div>
+</div>
+<div class="card">
+<div class="row"><span class="label">POST /mcp</span><span class="value">JSON-RPC 2.0</span></div>
+<div class="row"><span class="label">GET /mcp (SSE)</span><span class="value">Accept: text/event-stream</span></div>
+<div class="row"><span class="label">GET /sse</span><span class="value">SSE connection</span></div>
+<div class="row"><span class="label">GET /health</span><span class="value">Health check</span></div>
+</div>
+<p class="hint">This page confirms the server is running. Use an MCP client to interact with the tools.</p>
+</body></html>"""
+    }
 
     private fun sseHello(): String {
         val endpoint = JSONObject().put("uri", "/messages").put("method", "POST")

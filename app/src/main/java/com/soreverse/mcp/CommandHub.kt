@@ -333,13 +333,12 @@ private fun ServiceStatusRow(
 ) {
     val context = LocalContext.current
     val dirConfigured = settings.treeUri != null || settings.useDefaultWorkDir
-    // 桥接状态：定期轮询，只要有一个在线就显示已连接
-    val bridge = remember { com.soreverse.mcp.core.ApkMcpBridge(settings) }
-    var bridgeOnline by remember { mutableStateOf(bridge.state().online) }
+    // 桥接状态：使用 activeServer 的单例桥接，确保与探测全部使用同一实例
+    var bridgeOnline by remember { mutableStateOf(activeBridge(context).state().online) }
     val bridgeConfigured = settings.apkMcpConfigs.isNotEmpty() || settings.apkMcpUrl.isNotBlank()
     LaunchedEffect(Unit) {
         while (true) {
-            bridgeOnline = bridge.state().online
+            bridgeOnline = activeBridge(context).state().online
             delay(3000)
         }
     }

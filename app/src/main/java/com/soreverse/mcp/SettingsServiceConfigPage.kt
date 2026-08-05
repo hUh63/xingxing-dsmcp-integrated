@@ -6,17 +6,21 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.Public
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -27,8 +31,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.soreverse.mcp.core.AppLog
 import com.soreverse.mcp.core.EndpointInfo
@@ -97,24 +104,33 @@ internal fun SettingsServiceConfigPage(t: UiText, settings: SettingsStore) {
             }
         }
         GlassGroup(title = if (t.zh) "全部地址" else "All endpoints") {
-            endpoints.forEachIndexed { index, endpoint ->
-                if (index > 0) GroupDivider()
-                val display = displayEndpoint(endpoint, t.zh)
-                val copyUrl = if (settings.authEnabled) "${endpoint.url}?token=${settings.accessToken}" else endpoint.url
-                NavRow(display.first, endpoint.url, Icons.Default.Link, trailing = if (t.zh) "复制" else "Copy", onClick = { copy(context, copyUrl, t.copied) })
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                endpoints.forEach { endpoint ->
+                    val display = displayEndpoint(endpoint, t.zh)
+                    val copyUrl = if (settings.authEnabled) "${endpoint.url}?token=${settings.accessToken}" else endpoint.url
+                    val testUrl = if (settings.authEnabled) "${endpoint.url}?token=${settings.accessToken}" else endpoint.url
+                    EndpointCard(
+                        label = display.first,
+                        note = display.second,
+                        url = endpoint.url,
+                        zh = t.zh,
+                        onCopy = { copy(context, copyUrl, t.copied) },
+                        onTest = { openInBrowser(context, testUrl) },
+                    )
+                }
+                if (publicUrl != null) {
+                    val tunnelUrl = "$publicUrl/mcp"
+                    val tunnelCopy = if (settings.authEnabled) "$tunnelUrl?token=${settings.accessToken}" else tunnelUrl
+                    EndpointCard(
+                        label = if (t.zh) "公网隧道" else "Public tunnel",
+                        note = if (t.zh) "通过 Cloudflare 隧道暴露" else "Exposed via Cloudflare tunnel",
+                        url = tunnelUrl,
+                        zh = t.zh,
+                        onCopy = { copy(context, tunnelCopy, t.copied) },
+                        onTest = { openInBrowser(context, tunnelCopy) },
+                    )
+                }
             }
-            if (publicUrl != null) {
-                GroupDivider()
-                NavRow(if (t.zh) "公网隧道" else "Public tunnel", "$publicUrl/mcp", Icons.Default.Public, trailing = if (t.zh) "复制" else "Copy", onClick = { copy(context, "$publicUrl/mcp", t.copied) })
-            }
-            GroupDivider()
-            val browserTestUrl = if (settings.authEnabled) "$loopback?token=${settings.accessToken}" else loopback
-            NavRow(
-                if (t.zh) "浏览器测试" else "Browser test",
-                if (t.zh) "在浏览器中打开服务端点以验证服务状态" else "Open the service endpoint in a browser to verify it is running",
-                Icons.Default.Language,
-                trailing = if (t.zh) "打开" else "Open",
-            ) { openInBrowser(context, browserTestUrl) }
         }
         GlassGroup(title = if (t.zh) "客户端配置" else "Client configuration", footer = if (t.zh) "桌面客户端优先使用 NPX 或 UVX 配置" else "Prefer NPX or UVX for desktop clients") {
             Text(clientConfig(preferred, settings), modifier = Modifier.padding(14.dp), fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
@@ -219,6 +235,74 @@ private fun needsAllowHttp(url: String): Boolean {
         !lower.startsWith("http://localhost") &&
         !lower.startsWith("http://127.0.0.1") &&
         !lower.startsWith("http://[::1]")
+}
+
+@Composable
+private fun EndpointCard(
+    label: String,
+    note: String,
+    url: String,
+    zh: Boolean,
+    onCopy: () -> Unit,
+    onTest: () -> Unit,
+) {
+    val shape = RoundedCornerShape(12.dp)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), shape)
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                note,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Text(
+            url,
+            modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                if (zh) "测试" else "Test",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(onClick = onTest)
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            )
+            IconButton(onClick = onCopy) {
+                Icon(Icons.Default.ContentCopy, if (zh) "复制" else "Copy", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
 }
 
 private fun openInBrowser(context: Context, url: String) {

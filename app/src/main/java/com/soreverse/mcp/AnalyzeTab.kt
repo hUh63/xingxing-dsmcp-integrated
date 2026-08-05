@@ -92,6 +92,8 @@ internal fun AnalyzeTab(
         }
     }
     var showWorkspaces by remember { mutableStateOf(false) }
+    var manualSoPath by remember { mutableStateOf("") }
+    var manualError by remember { mutableStateOf("") }
     val pickTree = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
         if (uri != null) {
             runCatching {
@@ -101,6 +103,15 @@ internal fun AnalyzeTab(
             settings.useDefaultWorkDir = false
             EngineProvider.setWorkDirectory(context, uri)
             state.scannedTreeUri = null
+        }
+    }
+    val pickSoFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            // 将 content URI 转为可用的文件路径
+            manualSoPath = uri.toString()
         }
     }
 
@@ -414,32 +425,70 @@ internal fun AnalyzeTab(
             title = { Text(if (t.zh) "工作区" else "Workspaces") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // 工作目录选择
+                    // 手动建立工作区
+                    Text(
+                        if (t.zh) "手动打开 SO 文件建立工作区" else "Open a SO file to create a workspace",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    OutlinedTextField(
+                        value = manualSoPath,
+                        onValueChange = { manualSoPath = it; manualError = "" },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text(if (t.zh) "输入 SO 文件路径或选择文件" else "Enter SO file path or pick", maxLines = 1) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        isError = manualError.isNotBlank(),
+                        supportingText = if (manualError.isNotBlank()) {
+                            { Text(manualError, color = MaterialTheme.colorScheme.error) }
+                        } else null,
+                    )
                     Row(
                         Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                if (t.zh) "工作目录" else "Work directory",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Text(
-                                settings.treeUri?.let { com.soreverse.mcp.engine.WorkDirectory.displayPath(it) }
-                                    ?: if (settings.useDefaultWorkDir) (if (t.zh) "默认目录" else "Default") else (if (t.zh) "未设置" else "Not set"),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                        TextButton(onClick = { pickSoFile.launch(arrayOf("*/*")) }) {
+                            Text(if (t.zh) "选择文件" else "Pick file")
                         }
-                        TextButton(onClick = { pickTree.launch(null) }) {
-                            Text(if (t.zh) "选择" else "Choose")
+                        TextButton(onClick = {
+                            val path = manualSoPath.trim()
+                            if (path.isBlank()) {
+                                manualError = if (t.zh) "请输入或选择 SO 文件路径" else "Please enter or pick a SO file path"
+                                return@TextButton
+                            }
+                            scope.launch {
+                                val result = withContext(Dispatchers.IO) {
+                                    runCatching { EngineProvider.get(context).open(path, temporary = false) }
+                                }
+                                val opened = result.getOrNull()
+                                if (opened != null && opened.optBoolean("ok", true)) {
+                                    manualSoPath = ""
+                                    manualError = ""
+                                    state.workspaces = withContext(Dispatchers.IO) { loadWorkspaces(context.applicationContext) }
+                                } else {
+                                    val msg = opened?.optJSONObject("error")?.optString("message")
+                                        ?: result.exceptionOrNull()?.message
+                                        ?: (if (t.zh) "打开失败" else "Open failed")
+                                    manualError = msg
+                                }
+                            }
+                        }) {
+                            Text(if (t.zh) "打开" else "Open")
                         }
                     }
                     androidx.compose.material3.HorizontalDivider()
                     // 工作区列表
+                    Text(
+                        if (t.zh) "已打开的工作区 (${state.workspaces.size})" else "Open workspaces (${state.workspaces.size})",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
                     if (state.workspaces.isEmpty()) {
-                        Text(if (t.zh) "暂无通过 MCP 打开的工作区。\n\n工作区是通过 MCP 工具（如 mt_so_open）打开 SO 文件后创建的。程序基础分析不会创建工作区，AI 深度分析会自动创建。" else "No MCP workspaces.\n\nWorkspaces are created when SO files are opened via MCP tools (e.g., mt_so_open). Basic analysis does not create workspaces; AI deep analysis creates them automatically.")
+                        Text(
+                            if (t.zh) "暂无工作区。手动打开 SO 文件或通过 MCP 工具打开后会显示在这里。" else "No workspaces. Open a SO file manually or via MCP tools to see it here.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     } else {
                         state.workspaces.forEach { ws ->
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
