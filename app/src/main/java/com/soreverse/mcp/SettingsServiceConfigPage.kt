@@ -122,11 +122,11 @@ internal fun SettingsServiceConfigPage(t: UiText, settings: SettingsStore) {
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                PrimaryActionButton(if (t.zh) "打开测试" else "Open test") {
+                PrimaryActionButton(if (t.zh) "打开测试" else "Open test", {
                     val baseUrl = "http://127.0.0.1:${settings.port}/mcp"
                     val testUrl = if (settings.authEnabled) "$baseUrl?token=${settings.accessToken}" else baseUrl
                     openInBrowser(context, testUrl)
-                }
+                })
             }
         }
         GlassGroup(title = if (t.zh) "全部地址" else "All endpoints") {
