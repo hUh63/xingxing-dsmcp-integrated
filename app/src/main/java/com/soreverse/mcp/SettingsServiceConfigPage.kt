@@ -100,8 +100,8 @@ internal fun SettingsServiceConfigPage(t: UiText, settings: SettingsStore) {
             endpoints.forEachIndexed { index, endpoint ->
                 if (index > 0) GroupDivider()
                 val display = displayEndpoint(endpoint, t.zh)
-                val url = if (settings.authEnabled) "${endpoint.url}?token=${settings.accessToken}" else endpoint.url
-                NavRow(display.first, url, Icons.Default.Link, trailing = if (t.zh) "复制" else "Copy", onClick = { copy(context, url, t.copied) })
+                val copyUrl = if (settings.authEnabled) "${endpoint.url}?token=${settings.accessToken}" else endpoint.url
+                NavRow(display.first, endpoint.url, Icons.Default.Link, trailing = if (t.zh) "复制" else "Copy", onClick = { copy(context, copyUrl, t.copied) })
             }
             if (publicUrl != null) {
                 GroupDivider()

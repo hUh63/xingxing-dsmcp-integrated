@@ -121,8 +121,10 @@ internal fun CommandHubScreen(
         }
     }
 
-    val loopbackUrl = endpoints.firstOrNull { it.url.contains("127.0.0.1") }?.url
-        ?: "http://127.0.0.1:${settings.port}/mcp"
+    val loopbackUrl = (endpoints.firstOrNull { it.url.contains("127.0.0.1") }?.url
+        ?: "http://127.0.0.1:${settings.port}/mcp").let {
+            if (settings.authEnabled && settings.accessToken.isNotBlank()) "$it?token=${settings.accessToken}" else it
+        }
 
     fun toggle() {
         if (running) {
@@ -202,7 +204,7 @@ internal fun CommandHubScreen(
             zh = zh,
             settings = settings,
             onNavigateSettings = onNavigateSettings,
-            onAnalyze = { onNavigate(MainTab.Analyze, "analyze") },
+            onAnalyze = { onNavigate(MainTab.SoAnalyze, null) },
         )
 
         // 工具列表入口文本
@@ -323,6 +325,7 @@ private fun ServiceStatusRow(
     onNavigateSettings: (SettingsDest) -> Unit,
     onAnalyze: () -> Unit,
 ) {
+    val context = LocalContext.current
     val dirConfigured = settings.treeUri != null || settings.useDefaultWorkDir
     // 桥接状态：检查实际在线状态，而非仅检查是否配置
     val bridgeState = remember { com.soreverse.mcp.core.ApkMcpBridge(settings).state() }
@@ -332,15 +335,66 @@ private fun ServiceStatusRow(
     val keepAliveReady = settings.wakeLockEnabled && settings.floatingEnabled &&
         settings.tunnelKeepAlive && settings.bootAutoStart
 
+    // 公网隧道状态
+    var tunnelStatus by remember { mutableStateOf(activeServer(context)?.tunnel?.status()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            tunnelStatus = activeServer(context)?.tunnel?.status()
+            delay(2000)
+        }
+    }
+    val tunnelRunning = tunnelStatus?.state == com.soreverse.mcp.core.CloudflareTunnelManager.State.RUNNING
+    val tunnelStarting = tunnelStatus?.state == com.soreverse.mcp.core.CloudflareTunnelManager.State.STARTING
+    val tunnelColor = if (tunnelRunning) Color(0xFF34C759) else if (tunnelStarting) Color(0xFFFF9500) else MaterialTheme.colorScheme.onSurfaceVariant
+    val tunnelText = when {
+        tunnelRunning -> (if (zh) "公网隧道 · 运行中" else "Tunnel · Running") + (tunnelStatus?.publicUrl?.let { " $it" } ?: "")
+        tunnelStarting -> if (zh) "公网隧道 · 连接中…" else "Tunnel · Connecting…"
+        else -> if (zh) "公网隧道 · 未开启" else "Tunnel · Off"
+    }
+
     val accent = MaterialTheme.colorScheme.primary
 
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(bottom = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    Column(
+        Modifier.fillMaxWidth().padding(bottom = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        // 公网隧道状态文本
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(tunnelColor.copy(alpha = 0.10f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) { onNavigateSettings(SettingsDest.Tunnel) }
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Box(
+                Modifier.size(8.dp).clip(CircleShape).background(tunnelColor),
+            )
+            Text(
+                tunnelText,
+                style = MaterialTheme.typography.labelSmall,
+                color = tunnelColor,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                if (zh) "配置" else "Config",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            )
+        }
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
         // 三个状态卡片 — 使用 IntrinsicSize.Min 保证等高
         Row(
             Modifier.weight(1f).height(IntrinsicSize.Min),

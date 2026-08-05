@@ -1,6 +1,9 @@
 package com.soreverse.mcp
 
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,8 +34,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.soreverse.mcp.core.SettingsStore
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
@@ -70,6 +80,24 @@ internal fun ToolStatsSection(t: UiText, settings: SettingsStore) {
     var refreshKey by remember { mutableStateOf(0) }
     var snapshot by remember(refreshKey) { mutableStateOf(com.soreverse.mcp.core.ToolStats.snapshot()) }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val toolStatsExportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            runCatching {
+                val text = snapshot.toString(2)
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) }
+                }
+            }.onSuccess {
+                Toast.makeText(context, if (t.zh) "统计已导出" else "Exported", Toast.LENGTH_SHORT).show()
+            }.onFailure { e ->
+                Toast.makeText(context, if (t.zh) "导出失败: ${e.message}" else "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
     LaunchedEffect(refreshKey, settings.collectToolStats) {
         if (settings.collectToolStats) {
             delay(50)
@@ -119,6 +147,10 @@ internal fun ToolStatsSection(t: UiText, settings: SettingsStore) {
             snapshot = com.soreverse.mcp.core.ToolStats.snapshot()
             Toast.makeText(context, if (t.zh) "统计已重置" else "Reset", Toast.LENGTH_SHORT).show()
         }
+        SecondaryActionButton(if (t.zh) "导出" else "Export") {
+            val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+            toolStatsExportLauncher.launch("tool_stats_$ts.json")
+        }
     }
 }
 
@@ -126,7 +158,25 @@ internal fun ToolStatsSection(t: UiText, settings: SettingsStore) {
 internal fun TunnelStatsSection(t: UiText) {
     var refreshKey by remember { mutableStateOf(0) }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var stats by remember(refreshKey) { mutableStateOf(activeServer(context)?.tunnel?.tunnelStats() ?: JSONObject()) }
+    val tunnelStatsExportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            runCatching {
+                val text = stats.toString(2)
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) }
+                }
+            }.onSuccess {
+                Toast.makeText(context, if (t.zh) "隧道统计已导出" else "Exported", Toast.LENGTH_SHORT).show()
+            }.onFailure { e ->
+                Toast.makeText(context, if (t.zh) "导出失败: ${e.message}" else "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
     LaunchedEffect(refreshKey) {
         while (true) {
             stats = activeServer(context)?.tunnel?.tunnelStats() ?: JSONObject()
@@ -167,6 +217,10 @@ internal fun TunnelStatsSection(t: UiText) {
             activeServer(context)?.tunnel?.resetTunnelStats()
             refreshKey++
             Toast.makeText(context, if (t.zh) "隧道统计已重置" else "Tunnel stats reset", Toast.LENGTH_SHORT).show()
+        }
+        SecondaryActionButton(if (t.zh) "导出" else "Export") {
+            val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+            tunnelStatsExportLauncher.launch("tunnel_stats_$ts.json")
         }
     }
 }

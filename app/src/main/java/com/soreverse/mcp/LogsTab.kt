@@ -1,5 +1,9 @@
 package com.soreverse.mcp
 
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,10 +24,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -32,6 +40,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,12 +54,20 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.soreverse.mcp.core.AppLog
 import com.soreverse.mcp.core.SettingsStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 internal fun LogsTab(t: UiText, settings: SettingsStore, onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var logPaused by remember { mutableStateOf(false) }
     var logFilter by remember { mutableStateOf("all") }
+    var searchText by remember { mutableStateOf("") }
     var contentVersion by remember { mutableStateOf(0L) }
     val logs = remember { mutableStateListOf<String>().also { list -> list.addAll(AppLog.snapshot().takeLast(120)) } }
 
@@ -71,14 +88,37 @@ internal fun LogsTab(t: UiText, settings: SettingsStore, onBack: (() -> Unit)? =
 
     val visibleLogs = logs
         .filter { line ->
-            when (logFilter) {
+            val levelMatch = when (logFilter) {
                 "E" -> " E " in line
                 "W" -> " W " in line
                 "I" -> " I " in line
                 else -> true
             }
+            val searchMatch = searchText.isBlank() ||
+                localizeLogLine(line, t.zh).contains(searchText, ignoreCase = true)
+            levelMatch && searchMatch
         }
         .takeLast(settings.logMaxLines)
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/plain"),
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            runCatching {
+                val text = visibleLogs.joinToString("\n") { localizeLogLine(it, t.zh) }
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                        output.write(text.toByteArray(Charsets.UTF_8))
+                    } ?: error("Cannot open output file")
+                }
+            }.onSuccess {
+                Toast.makeText(context, if (t.zh) "日志已导出" else "Logs exported", Toast.LENGTH_SHORT).show()
+            }.onFailure { error ->
+                Toast.makeText(context, if (t.zh) "导出失败: ${error.message}" else "Export failed: ${error.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     Column(Modifier.fillMaxSize()) {
         ScreenHeader(
@@ -98,6 +138,21 @@ internal fun LogsTab(t: UiText, settings: SettingsStore, onBack: (() -> Unit)? =
                 logFilter,
                 { logFilter = it },
             )
+            OutlinedTextField(
+                value = searchText,
+                onValueChange = { searchText = it },
+                placeholder = { Text(if (t.zh) "搜索日志…" else "Search logs…") },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
         ModernLogPanel(
             lines = visibleLogs,
@@ -112,7 +167,11 @@ internal fun LogsTab(t: UiText, settings: SettingsStore, onBack: (() -> Unit)? =
         ) {
             LogActionButton(if (logPaused) if (t.zh) "继续" else "Resume" else if (t.zh) "暂停" else "Pause", if (logPaused) Icons.Default.PlayArrow else Icons.Default.Pause, Modifier.weight(1f)) { logPaused = !logPaused }
             LogActionButton(if (t.zh) "清空" else "Clear", Icons.Default.Delete, Modifier.weight(1f)) { AppLog.clear(); logs.clear() }
-            LogActionButton(if (t.zh) "复制结果" else "Copy results", Icons.Default.ContentCopy, Modifier.weight(1f)) { copy(context, visibleLogs.joinToString("\n") { localizeLogLine(it, t.zh) }, t.copied) }
+            LogActionButton(if (t.zh) "复制" else "Copy", Icons.Default.ContentCopy, Modifier.weight(1f)) { copy(context, visibleLogs.joinToString("\n") { localizeLogLine(it, t.zh) }, t.copied) }
+            LogActionButton(if (t.zh) "导出" else "Export", Icons.Default.FileDownload, Modifier.weight(1f)) {
+                val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                exportLauncher.launch("niehe_logs_$timestamp.txt")
+            }
         }
     }
 }

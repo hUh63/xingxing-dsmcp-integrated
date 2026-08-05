@@ -61,7 +61,7 @@ private fun settingsTitle(t: UiText, dest: SettingsDest): String = when (dest) {
     SettingsDest.Audit -> if (t.zh) "编辑校验与审计" else "Edit & Audit"
     SettingsDest.Blutter -> "Blutter"
     SettingsDest.Tunnel -> if (t.zh) "Cloudflare 隧道" else "Cloudflare Tunnel"
-    SettingsDest.ApkBridge -> if (t.zh) "桥接" else "Bridge"
+    SettingsDest.ApkBridge -> "APK MCP"
     SettingsDest.AiDeep -> if (t.zh) "AI 深度分析" else "AI Deep Analysis"
     SettingsDest.Updates -> if (t.zh) "版本更新" else "Software Update"
     SettingsDest.Probe -> t.externalProbe
@@ -169,7 +169,7 @@ internal fun SettingsHub(
                     SettingsTile(if (t.zh) "保活" else "Keep-alive", if (t.zh) "唤醒锁 / 自启" else "Wake lock / boot", Icons.Default.PowerSettingsNew, AppPalette.green, { onDest(SettingsDest.KeepAlive) }, Modifier.weight(1f).fillMaxHeight())
                 }
                 Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SettingsTile(if (t.zh) "桥接" else "Bridge", if (t.zh) "MT 管理器协同" else "MT Manager bridge", Icons.Default.Link, AppPalette.orange, { onDest(SettingsDest.ApkBridge) }, Modifier.weight(1f).fillMaxHeight())
+                    SettingsTile("APK MCP", if (t.zh) "MT 管理器协同" else "MT Manager bridge", Icons.Default.Link, AppPalette.orange, { onDest(SettingsDest.ApkBridge) }, Modifier.weight(1f).fillMaxHeight())
                     SettingsTile(if (t.zh) "隧道" else "Tunnel", if (t.zh) "公网暴露 / 保活" else "Public expose", Icons.Default.Cloud, AppPalette.purple, { onDest(SettingsDest.Tunnel) }, Modifier.weight(1f).fillMaxHeight())
                 }
                 Text(if (t.zh) "引擎" else "Engine", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
