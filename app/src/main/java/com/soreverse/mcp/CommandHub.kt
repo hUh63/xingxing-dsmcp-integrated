@@ -171,7 +171,7 @@ internal fun CommandHubScreen(
                     if (zh) "塔菲逆核" else "Taffy NieHe",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Black,
-                    color = Color(0xFF1A73E8),
+                    color = Color(0xFFFF375F),
                 )
                 Text(
                     if (zh) "聚合式逆向 · 命令中枢" else "Reverse Command Hub",

@@ -1,12 +1,20 @@
 package com.soreverse.mcp
 
 import android.content.Context
+import android.net.Uri
 import com.soreverse.mcp.core.AppLog
 import com.soreverse.mcp.core.DeepReportStore
 import com.soreverse.mcp.core.EngineProvider
 import com.soreverse.mcp.core.RikkaPart
+import com.soreverse.mcp.core.err
+import com.soreverse.mcp.core.ok
+import com.soreverse.mcp.engine.ApkAnalysisLimitException
+import com.soreverse.mcp.engine.ApkAnalyzer
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.IOException
 
 internal fun loadWorkspaces(context: Context): List<WorkspaceUi> {
     val payload = EngineProvider.get(context).listWorkspaces()
@@ -168,5 +176,63 @@ internal fun openSoForUi(context: Context, path: String, zh: Boolean = false): P
         }
     } finally {
         engine.close(workspaceId)
+    }
+}
+
+/**
+ * 打开并分析用户选择的 APK 文件。
+ *
+ * 与 [openSoForUi] 对应：SO 文件走 ELF 工作区流程，APK 走独立的 [ApkAnalyzer] 解析流程。
+ * 直接通过 ContentResolver 读取字节，因此既能处理 content:// URI（SAF 选择器返回），
+ * 也能处理本地文件路径，无需把 APK 先放进工作目录。
+ *
+ * 返回值与引擎 open/analyze 的约定一致：成功时为 ok(payload)，失败时为 err(...)，
+ * 便于 UI 侧统一用 optBoolean("ok", true) 判断。
+ */
+internal fun analyzeApkForUi(context: Context, path: String, zh: Boolean = false): JSONObject {
+    val name = path.substringAfterLast('/').substringBefore('?').ifBlank { "apk" }
+    val bytes = try {
+        readApkBytes(context, path)
+    } catch (e: ApkAnalysisLimitException) {
+        return err("APK_LIMIT_EXCEEDED", e.message ?: (if (zh) "APK 超出分析限制" else "APK exceeds analysis limits"))
+    } catch (e: Exception) {
+        AppLog.e("APK read failed: ${e.message}")
+        return err("APK_READ_FAILED", if (zh) "无法读取 APK 文件：${e.message ?: e.javaClass.simpleName}" else "Cannot read APK file: ${e.message ?: e.javaClass.simpleName}")
+    }
+    if (bytes.size < 4 || bytes[0] != 0x50.toByte() || bytes[1] != 0x4b.toByte()) {
+        return err("APK_INVALID", if (zh) "所选文件不是 APK/ZIP 文件" else "Selected file is not an APK/ZIP file")
+    }
+    return try {
+        ok(ApkAnalyzer.analyze(bytes, name, 500))
+    } catch (e: ApkAnalysisLimitException) {
+        err("APK_LIMIT_EXCEEDED", e.message ?: (if (zh) "APK 超出分析限制" else "APK exceeds analysis limits"))
+    } catch (e: Exception) {
+        AppLog.e("APK analysis failed: ${e.message}")
+        err("APK_ANALYZE_FAILED", e.message ?: (if (zh) "APK 分析失败" else "APK analysis failed"))
+    }
+}
+
+private fun readApkBytes(context: Context, path: String): ByteArray {
+    val uri = runCatching { Uri.parse(path) }.getOrNull()
+    val maxBytes = ApkAnalyzer.MAX_INPUT_BYTES
+    return if (uri != null && (uri.scheme == "content" || uri.scheme == "file")) {
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            val out = ByteArrayOutputStream()
+            val buffer = ByteArray(64 * 1024)
+            var total = 0L
+            while (true) {
+                val n = input.read(buffer)
+                if (n < 0) break
+                total += n
+                if (total > maxBytes) throw ApkAnalysisLimitException("APK exceeds ${maxBytes / 1024 / 1024} MiB input limit")
+                out.write(buffer, 0, n)
+            }
+            out.toByteArray()
+        } ?: throw IOException("Cannot open APK input stream")
+    } else {
+        val file = File(path)
+        if (!file.isFile) throw IOException("APK file not found: $path")
+        if (file.length() > maxBytes) throw ApkAnalysisLimitException("APK exceeds ${maxBytes / 1024 / 1024} MiB input limit")
+        file.readBytes()
     }
 }

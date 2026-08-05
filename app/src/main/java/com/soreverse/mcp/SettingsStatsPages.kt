@@ -114,7 +114,7 @@ internal fun ToolStatsSection(t: UiText, settings: SettingsStore) {
     val distinct = snapshot.optInt("distinctTools", 0)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         MetricPill(if (t.zh) "总调用" else "Calls", totalCalls.toString(), MaterialTheme.colorScheme.primary)
-        MetricPill("OK", totalOk.toString(), AppleColors.systemGreen)
+        MetricPill(if (t.zh) "成功" else "OK", totalOk.toString(), AppleColors.systemGreen)
         MetricPill(if (t.zh) "失败" else "Failed", totalFailed.toString(), AppleColors.systemRed)
         MetricPill(if (t.zh) "工具" else "Tools", distinct.toString(), AppleColors.systemIndigo)
     }
@@ -139,18 +139,18 @@ internal fun ToolStatsSection(t: UiText, settings: SettingsStore) {
         }
     }
     Spacer(Modifier.height(8.dp))
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        SecondaryActionButton(if (t.zh) "刷新" else "Refresh") { refreshKey++; snapshot = com.soreverse.mcp.core.ToolStats.snapshot() }
-        SecondaryActionButton(if (t.zh) "重置" else "Reset") {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        SecondaryActionButton(if (t.zh) "刷新" else "Refresh", { refreshKey++; snapshot = com.soreverse.mcp.core.ToolStats.snapshot() }, Modifier.weight(1f))
+        SecondaryActionButton(if (t.zh) "重置" else "Reset", {
             com.soreverse.mcp.core.ToolStats.reset()
             refreshKey++
             snapshot = com.soreverse.mcp.core.ToolStats.snapshot()
             Toast.makeText(context, if (t.zh) "统计已重置" else "Reset", Toast.LENGTH_SHORT).show()
-        }
-        SecondaryActionButton(if (t.zh) "导出" else "Export") {
+        }, Modifier.weight(1f))
+        SecondaryActionButton(if (t.zh) "导出" else "Export", {
             val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
             toolStatsExportLauncher.launch("tool_stats_$ts.json")
-        }
+        }, Modifier.weight(1f))
     }
 }
 
@@ -211,16 +211,16 @@ internal fun TunnelStatsSection(t: UiText) {
     Spacer(Modifier.height(6.dp))
     Text(if (t.zh) "探查失败率 ≈ ${lossRate}%  ($probeFailures / $totalProbes)" else "Probe failure rate ≈ ${lossRate}%  ($probeFailures / $totalProbes)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
     Spacer(Modifier.height(8.dp))
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        SecondaryActionButton(if (t.zh) "刷新" else "Refresh") { refreshKey++ }
-        SecondaryActionButton(if (t.zh) "重置" else "Reset") {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        SecondaryActionButton(if (t.zh) "刷新" else "Refresh", { refreshKey++ }, Modifier.weight(1f))
+        SecondaryActionButton(if (t.zh) "重置" else "Reset", {
             activeServer(context)?.tunnel?.resetTunnelStats()
             refreshKey++
             Toast.makeText(context, if (t.zh) "隧道统计已重置" else "Tunnel stats reset", Toast.LENGTH_SHORT).show()
-        }
-        SecondaryActionButton(if (t.zh) "导出" else "Export") {
+        }, Modifier.weight(1f))
+        SecondaryActionButton(if (t.zh) "导出" else "Export", {
             val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
             tunnelStatsExportLauncher.launch("tunnel_stats_$ts.json")
-        }
+        }, Modifier.weight(1f))
     }
 }

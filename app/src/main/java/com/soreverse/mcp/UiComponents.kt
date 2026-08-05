@@ -51,6 +51,7 @@ internal fun ScreenHeader(
     showBack: Boolean = false,
     onBack: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
+    titleColor: Color? = null,
 ) {
     val metrics = LocalUiMetrics.current
     Row(
@@ -70,7 +71,7 @@ internal fun ScreenHeader(
                 title,
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onBackground,
+                color = titleColor ?: MaterialTheme.colorScheme.onBackground,
                 letterSpacing = (-0.3).sp,
             )
             if (!subtitle.isNullOrBlank()) {

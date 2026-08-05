@@ -325,22 +325,84 @@ class McpHttpServer(private val context: Context, private val port: Int, private
         val bridge = apkBridge.state()
         val bridgeStatus = if (bridge.online) "Online (${bridge.tools.size} tools)" else "Offline"
         val tunnelUrl = tunnel.status().publicUrl?.takeIf { it.isNotBlank() } ?: "Not configured"
+
+        // Build tool catalog grouped by category
+        val cats = ToolCatalogPresentation.categoryDescriptions(false)
+        val grouped = LinkedHashMap<String, MutableList<Pair<String, String>>>()
+        cats.forEach { (cat, _) -> grouped[cat] = mutableListOf() }
+        ToolCatalog.ALL.forEach { e -> grouped[e.meta.category]?.add(e.meta.name to e.meta.en) }
+        if (bridge.online) {
+            grouped["apk-bridge"] = bridge.tools.map { it.name to (it.description ?: it.name) }.toMutableList()
+        }
+
+        val totalTools = ToolCatalog.ALL.size + if (bridge.online) bridge.tools.size else 0
+        val toolCards = StringBuilder()
+        grouped.forEach { (cat, tools) ->
+            if (tools.isEmpty()) return@forEach
+            val catLabel = cats.firstOrNull { it.first == cat }?.second ?: cat
+            toolCards.append("<div class='cat-group'>")
+            toolCards.append("<div class='cat-header'><span class='cat-name'>$catLabel</span><span class='cat-count'>${tools.size}</span></div>")
+            toolCards.append("<div class='cat-tools'>")
+            tools.forEach { (name, desc) ->
+                val shortDesc = desc.take(60)
+                toolCards.append("<div class='tool-item'><code>$name</code><span class='tool-desc'>$shortDesc</span></div>")
+            }
+            toolCards.append("</div></div>")
+        }
+
+        // Build tool call history from ToolStats
+        val stats = ToolStats.snapshot()
+        val totalCalls = stats.optLong("totalCalls", 0)
+        val totalOk = stats.optLong("totalOk", 0)
+        val totalFailed = stats.optLong("totalFailed", 0)
+        val distinctTools = stats.optInt("distinctTools", 0)
+        val toolsArr = stats.optJSONArray("tools")
+        val historyRows = StringBuilder()
+        if (toolsArr != null && toolsArr.length() > 0) {
+            val entries = (0 until toolsArr.length()).mapNotNull { i ->
+                val obj = toolsArr.optJSONObject(i) ?: return@mapNotNull null
+                Triple(obj.optString("tool"), obj.optLong("calls"), obj.optLong("failed"))
+            }.sortedByDescending { it.second }
+            entries.take(20).forEach { (name, calls, failed) ->
+                val status = if (failed > 0) "has-fail" else "all-ok"
+                val failInfo = if (failed > 0) " <span class='fail-badge'>$failed fail</span>" else ""
+                historyRows.append("<div class='row $status'><span class='label'><code>$name</code></span><span class='value'>$calls calls$failInfo</span></div>")
+            }
+        } else {
+            historyRows.append("<p class='hint'>No tool calls recorded yet.</p>")
+        }
+
         return """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Taffy MCP Status</title>
 <style>
-body{font-family:system-ui,-apple-system,sans-serif;max-width:600px;margin:40px auto;padding:0 20px;background:#f5f5f5;color:#333}
+body{font-family:system-ui,-apple-system,sans-serif;max-width:680px;margin:40px auto;padding:0 20px;background:#f5f5f5;color:#333}
 .card{background:#fff;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin-bottom:16px}
-h1{font-size:24px;margin:0 0 8px;color:#1a73e8}
+h1{font-size:24px;margin:0 0 8px;color:#FF375F}
+h2{font-size:18px;margin:0 0 12px;color:#333}
 .status{display:inline-block;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:600}
 .ok{background:#e8f5e9;color:#2e7d32}
 .off{background:#fbe9e7;color:#c62828}
-.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee}
+.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;align-items:center}
 .row:last-child{border:none}
 .label{color:#666;font-size:14px}
 .value{font-weight:500;font-size:14px}
 code{background:#f0f0f0;padding:2px 6px;border-radius:4px;font-size:13px}
 .hint{font-size:13px;color:#999;margin-top:16px}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.stat-box{text-align:center;padding:12px;border-radius:8px;background:#f8f8f8}
+.stat-num{font-size:24px;font-weight:700;color:#FF375F}
+.stat-label{font-size:12px;color:#999;margin-top:4px}
+.cat-group{margin-bottom:16px}
+.cat-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #f0f0f0}
+.cat-name{font-weight:600;font-size:14px;color:#333}
+.cat-count{background:#FF375F;color:#fff;border-radius:12px;padding:2px 10px;font-size:12px;font-weight:600}
+.cat-tools{display:flex;flex-direction:column;gap:4px}
+.tool-item{display:flex;gap:8px;align-items:baseline;padding:4px 0}
+.tool-item code{min-width:180px;font-size:12px}
+.tool-desc{font-size:12px;color:#888;flex:1}
+.fail-badge{background:#fbe9e7;color:#c62828;padding:1px 6px;border-radius:4px;font-size:11px}
+.row.has-fail{background:#fff5f5}
 </style></head><body>
 <div class="card">
 <h1>Taffy MCP Server</h1>
@@ -356,7 +418,21 @@ code{background:#f0f0f0;padding:2px 6px;border-radius:4px;font-size:13px}
 <div class="row"><span class="label">GET /sse</span><span class="value">SSE connection</span></div>
 <div class="row"><span class="label">GET /health</span><span class="value">Health check</span></div>
 </div>
-<p class="hint">This page confirms the server is running. Use an MCP client to interact with the tools.</p>
+<div class="card">
+<h2>Tool Catalog ($totalTools tools)</h2>
+$toolCards
+</div>
+<div class="card">
+<h2>Tool Call History</h2>
+<div class="stat-grid">
+<div class="stat-box"><div class="stat-num">$totalCalls</div><div class="stat-label">Total Calls</div></div>
+<div class="stat-box"><div class="stat-num" style="color:#2e7d32">$totalOk</div><div class="stat-label">Success</div></div>
+<div class="stat-box"><div class="stat-num" style="color:#c62828">$totalFailed</div><div class="stat-label">Failed</div></div>
+<div class="stat-box"><div class="stat-num" style="color:#5E5CE6">$distinctTools</div><div class="stat-label">Tools Used</div></div>
+</div>
+$historyRows
+</div>
+<p class="hint">This page confirms the server is running. Use an MCP client to interact with the tools. Stats update on page refresh.</p>
 </body></html>"""
     }
 

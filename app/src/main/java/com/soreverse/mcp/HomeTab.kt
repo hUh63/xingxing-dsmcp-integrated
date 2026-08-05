@@ -115,6 +115,7 @@ internal fun HomeTab(
         ScreenHeader(
             title = if (t.zh) "塔菲逆核" else "Taffy NieHe",
             subtitle = if (t.zh) "本地逆向工具聚合 · 连一个地址即可用全部工具" else "Local reverse-engineering gateway",
+            titleColor = Color(0xFFFF375F),
         )
 
         // ── 大启动开关 ──

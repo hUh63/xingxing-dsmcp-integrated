@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -94,6 +95,10 @@ internal fun AnalyzeTab(
     var showWorkspaces by remember { mutableStateOf(false) }
     var manualSoPath by remember { mutableStateOf("") }
     var manualError by remember { mutableStateOf("") }
+    var manualInfo by remember { mutableStateOf("") }
+    // settings.treeUri 由 SharedPreferences 支撑，不是 Compose 可观察状态，直接作为 LaunchedEffect
+    // 的 key 不会在选择目录后可靠触发重组。这里镜像成快照状态，确保一选目录就立刻重新扫描。
+    var treeUriKey by remember { mutableStateOf(settings.treeUri?.toString()) }
     val pickTree = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
         if (uri != null) {
             runCatching {
@@ -103,6 +108,7 @@ internal fun AnalyzeTab(
             settings.useDefaultWorkDir = false
             EngineProvider.setWorkDirectory(context, uri)
             state.scannedTreeUri = null
+            treeUriKey = uri.toString()
         }
     }
     val pickSoFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -111,16 +117,36 @@ internal fun AnalyzeTab(
                 context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             val path = uri.toString()
+            val isApk = path.substringBefore('?').endsWith(".apk", ignoreCase = true)
             manualSoPath = path
             manualError = ""
+            manualInfo = ""
             scope.launch {
                 val result = withContext(Dispatchers.IO) {
-                    runCatching { EngineProvider.get(context).open(path, temporary = false) }
+                    runCatching {
+                        val engine = EngineProvider.get(context)
+                        if (isApk) analyzeApkForUi(context.applicationContext, path, t.zh)
+                        else engine.open(path, temporary = false)
+                    }
                 }
                 val opened = result.getOrNull()
                 if (opened != null && opened.optBoolean("ok", true)) {
-                    manualSoPath = ""
-                    state.workspaces = withContext(Dispatchers.IO) { loadWorkspaces(context.applicationContext) }
+                    if (isApk) {
+                        // APK 走独立解析流程，不会创建 ELF 工作区，直接展示分析摘要。
+                        val entryCount = opened.optInt("entryCount", 0)
+                        val nativeLibs = opened.optJSONArray("nativeLibraries")?.length() ?: 0
+                        val dexFiles = opened.optJSONArray("dexFiles")?.length() ?: 0
+                        manualInfo = if (t.zh)
+                            "APK 分析完成：${entryCount} 个条目，${nativeLibs} 个原生库，${dexFiles} 个 DEX 文件"
+                        else
+                            "APK analyzed: $entryCount entries, $nativeLibs native libraries, $dexFiles DEX files"
+                        manualSoPath = ""
+                        manualError = ""
+                    } else {
+                        manualSoPath = ""
+                        manualError = ""
+                        state.workspaces = withContext(Dispatchers.IO) { loadWorkspaces(context.applicationContext) }
+                    }
                 } else {
                     val msg = opened?.optJSONObject("error")?.optString("message")
                         ?: result.exceptionOrNull()?.message
@@ -141,25 +167,46 @@ internal fun AnalyzeTab(
             state.scannedTreeUri = null
             manualSoPath = uri.toString()
             manualError = ""
+            manualInfo = ""
             showWorkspaces = false
+            treeUriKey = uri.toString()
         }
     }
 
     fun openManualPath() {
         val path = manualSoPath.trim()
         if (path.isBlank()) {
-            manualError = if (t.zh) "请输入或选择 SO 文件路径" else "Please enter or pick a SO file path"
+            manualError = if (t.zh) "请输入或选择 SO/APK 文件路径" else "Please enter or pick a SO/APK file path"
             return
         }
+        val isApk = path.substringBefore('?').endsWith(".apk", ignoreCase = true)
+        manualInfo = ""
         scope.launch {
             val result = withContext(Dispatchers.IO) {
-                runCatching { EngineProvider.get(context).open(path, temporary = false) }
+                runCatching {
+                    val engine = EngineProvider.get(context)
+                    if (isApk) analyzeApkForUi(context.applicationContext, path, t.zh)
+                    else engine.open(path, temporary = false)
+                }
             }
             val opened = result.getOrNull()
             if (opened != null && opened.optBoolean("ok", true)) {
-                manualSoPath = ""
-                manualError = ""
-                state.workspaces = withContext(Dispatchers.IO) { loadWorkspaces(context.applicationContext) }
+                if (isApk) {
+                    // APK 走独立解析流程，不会创建 ELF 工作区，直接展示分析摘要。
+                    val entryCount = opened.optInt("entryCount", 0)
+                    val nativeLibs = opened.optJSONArray("nativeLibraries")?.length() ?: 0
+                    val dexFiles = opened.optJSONArray("dexFiles")?.length() ?: 0
+                    manualInfo = if (t.zh)
+                        "APK 分析完成：${entryCount} 个条目，${nativeLibs} 个原生库，${dexFiles} 个 DEX 文件"
+                    else
+                        "APK analyzed: $entryCount entries, $nativeLibs native libraries, $dexFiles DEX files"
+                    manualSoPath = ""
+                    manualError = ""
+                } else {
+                    manualSoPath = ""
+                    manualError = ""
+                    state.workspaces = withContext(Dispatchers.IO) { loadWorkspaces(context.applicationContext) }
+                }
             } else {
                 val msg = opened?.optJSONObject("error")?.optString("message")
                     ?: result.exceptionOrNull()?.message
@@ -173,8 +220,8 @@ internal fun AnalyzeTab(
         launchDeepAnalysis(context, path, request, settings, state, scope, deepService, t.zh)
     }
 
-    LaunchedEffect(settings.treeUri?.toString(), settings.defaultLimit) {
-        val treeKey = settings.treeUri?.toString()
+    LaunchedEffect(treeUriKey, settings.defaultLimit) {
+        val treeKey = treeUriKey
         if (treeKey == null) {
             state.message = if (t.zh) "尚未选择目录，请先选择工作目录" else "No directory selected. Choose a work directory first."
         } else if (state.scannedTreeUri != treeKey && !state.scanning) {
@@ -259,45 +306,51 @@ internal fun AnalyzeTab(
                 }
             },
         )
-        Column(
-            Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(bottom = 12.dp),
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 12.dp),
         ) {
-            Row(Modifier.padding(horizontal = LocalUiMetrics.current.pagePad, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    if (state.scanning) (if (t.zh) "扫描中…" else "Scanning…") else if (state.soSources.isNotEmpty()) (if (t.zh) "共计 ${state.soSources.size} 个 SO 文件" else "${state.soSources.size} SO files") else if (state.scannedTreeUri != null && state.message.isNotBlank()) state.message else (if (t.zh) "选择工作区后自动扫描" else "Choose a workspace to scan"),
-                    Modifier.weight(1f),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                if (settings.treeUri == null) {
-                    TextButton(onClick = { pickTree.launch(null) }) { Text(if (t.zh) "选择目录" else "Choose") }
+            item {
+                Row(Modifier.padding(horizontal = LocalUiMetrics.current.pagePad, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (state.scanning) (if (t.zh) "扫描中…" else "Scanning…") else if (state.soSources.isNotEmpty()) (if (t.zh) "共计 ${state.soSources.size} 个 SO 文件" else "${state.soSources.size} SO files") else if (state.scannedTreeUri != null && state.message.isNotBlank()) state.message else (if (t.zh) "选择工作区后自动扫描" else "Choose a workspace to scan"),
+                        Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    if (settings.treeUri == null) {
+                        TextButton(onClick = { pickTree.launch(null) }) { Text(if (t.zh) "选择目录" else "Choose") }
+                    }
                 }
             }
             if (state.scanning) {
-                LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = LocalUiMetrics.current.pagePad))
-                Spacer(Modifier.height(8.dp))
+                item {
+                    LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = LocalUiMetrics.current.pagePad))
+                    Spacer(Modifier.height(8.dp))
+                }
             }
             if (state.analyzingSoPath != null) {
-                LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 14.dp))
-                Text(
-                    state.message.ifBlank { if (t.zh) "正在进行程序基础分析…" else "Running program analysis…" },
-                    modifier = Modifier.padding(horizontal = LocalUiMetrics.current.pagePad, vertical = 6.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.labelMedium,
-                )
+                item {
+                    LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 14.dp))
+                    Text(
+                        state.message.ifBlank { if (t.zh) "正在进行程序基础分析…" else "Running program analysis…" },
+                        modifier = Modifier.padding(horizontal = LocalUiMetrics.current.pagePad, vertical = 6.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
             }
             if (state.soSources.isEmpty()) {
-                Text(
-                    state.message.ifBlank { if (t.zh) "未找到 SO 文件" else "No SO files found" },
-                    modifier = Modifier.padding(horizontal = LocalUiMetrics.current.pagePad, vertical = 8.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                item {
+                    Text(
+                        state.message.ifBlank { if (t.zh) "未找到 SO 文件" else "No SO files found" },
+                        modifier = Modifier.padding(horizontal = LocalUiMetrics.current.pagePad, vertical = 8.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             } else {
-                state.soSources.take(30).forEachIndexed { idx, src ->
+                itemsIndexed(state.soSources, key = { _, src -> src.path }) { idx, src ->
                     if (idx > 0) GroupDivider()
                     Column {
                         Row(
@@ -478,7 +531,10 @@ internal fun AnalyzeTab(
             onDismissRequest = { showWorkspaces = false },
             title = { Text(if (t.zh) "工作区" else "Workspaces") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     // 手动建立工作区
                     Text(
                         if (t.zh) "手动建立工作区" else "Create workspace manually",
@@ -487,9 +543,9 @@ internal fun AnalyzeTab(
                     )
                     OutlinedTextField(
                         value = manualSoPath,
-                        onValueChange = { manualSoPath = it; manualError = "" },
+                        onValueChange = { manualSoPath = it; manualError = ""; manualInfo = "" },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text(if (t.zh) "输入 SO 文件路径或文件夹路径" else "Enter SO file or folder path", maxLines = 1) },
+                        placeholder = { Text(if (t.zh) "输入 SO/APK 文件路径或文件夹路径" else "Enter SO/APK file or folder path", maxLines = 1) },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         isError = manualError.isNotBlank(),
@@ -501,13 +557,15 @@ internal fun AnalyzeTab(
                         ),
                         supportingText = if (manualError.isNotBlank()) {
                             { Text(manualError, color = MaterialTheme.colorScheme.error) }
+                        } else if (manualInfo.isNotBlank()) {
+                            { Text(manualInfo, color = MaterialTheme.colorScheme.primary) }
                         } else null,
                     )
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        TextButton(onClick = { pickSoFile.launch(arrayOf("*/*")) }) {
+                        TextButton(onClick = { pickSoFile.launch(arrayOf("application/vnd.android.package-archive", "application/octet-stream")) }) {
                             Text(if (t.zh) "选择文件" else "Pick file")
                         }
                         TextButton(onClick = { pickSoFolder.launch(null) }) {
