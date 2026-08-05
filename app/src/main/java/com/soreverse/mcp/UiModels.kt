@@ -90,6 +90,10 @@ internal class AnalyzeUiState {
     var deepJob: Job? = null
     /** 手动打开的 APK 分析结果，以 path 为 key。与 ELF 工作区不同，APK 不走引擎工作区流程。 */
     var apkResults by mutableStateOf<Map<String, JSONObject>>(emptyMap())
+    /** 从 APK 中提取的 SO 缓存路径映射：key = "apkPath!entryName", value = 缓存文件路径。 */
+    var extractedSoPaths by mutableStateOf<Map<String, String>>(emptyMap())
+    /** 详情面板中显示的消息（分析进度、错误等），独立于主列表的 message。 */
+    var detailMessage by mutableStateOf("")
 }
 
 internal data class UiText(

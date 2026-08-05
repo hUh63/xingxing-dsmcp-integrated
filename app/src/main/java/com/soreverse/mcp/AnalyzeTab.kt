@@ -124,18 +124,17 @@ internal fun AnalyzeTab(
             }
             val path = uri.toString()
             val isApk = path.substringBefore('?').endsWith(".apk", ignoreCase = true)
-            val isSo = path.substringBefore('?').endsWith(".so", ignoreCase = true)
             manualSoPath = path
             manualError = ""
             manualInfo = ""
             scope.launch {
                 val result = withContext(Dispatchers.IO) {
                     runCatching {
-                        val engine = EngineProvider.get(context)
                         if (isApk) {
                             analyzeApkForUi(context.applicationContext, path, t.zh)
                         } else {
-                            // SO 文件：通过 engine.open() 打开，content:// URI 会被自动复制到缓存目录
+                            // 直接将 content:// URI 传给引擎，引擎内部会复制到缓存目录再以本地路径打开
+                            val engine = EngineProvider.get(context)
                             engine.open(path, temporary = false)
                         }
                     }
@@ -160,16 +159,22 @@ internal fun AnalyzeTab(
                         manualSoPath = ""
                         manualError = ""
                     } else {
-                        // SO 文件成功打开工作区
+                        // SO 文件成功打开工作区：关闭对话框、刷新列表、自动进行基础分析
+                        val workspaceId = opened.optString("workspaceId")
+                        val soName = opened.optString("soFileName", "lib.so")
                         manualSoPath = ""
                         manualError = ""
+                        manualInfo = ""
+                        showWorkspaces = false
                         state.workspaces = withContext(Dispatchers.IO) { loadWorkspaces(context.applicationContext) }
+                        launchWorkspaceAnalysis(context, workspaceId, soName, state, scope, t.zh)
                     }
                 } else {
                     val msg = opened?.optJSONObject("error")?.optString("message")
                         ?: result.exceptionOrNull()?.message
                         ?: (if (t.zh) "打开失败" else "Open failed")
                     manualError = msg
+                    state.message = msg
                 }
             }
         }
@@ -204,10 +209,11 @@ internal fun AnalyzeTab(
         scope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    val engine = EngineProvider.get(context)
                     if (isApk) {
                         analyzeApkForUi(context.applicationContext, path, t.zh)
                     } else {
+                        // 直接将路径传给引擎，引擎会处理 content:// URI 和本地路径
+                        val engine = EngineProvider.get(context)
                         engine.open(path, temporary = false)
                     }
                 }
@@ -227,15 +233,22 @@ internal fun AnalyzeTab(
                     manualSoPath = ""
                     manualError = ""
                 } else {
+                    // SO 文件成功打开工作区：关闭对话框、刷新列表、自动进行基础分析
+                    val workspaceId = opened.optString("workspaceId")
+                    val soName = opened.optString("soFileName", "lib.so")
                     manualSoPath = ""
                     manualError = ""
+                    manualInfo = ""
+                    showWorkspaces = false
                     state.workspaces = withContext(Dispatchers.IO) { loadWorkspaces(context.applicationContext) }
+                    launchWorkspaceAnalysis(context, workspaceId, soName, state, scope, t.zh)
                 }
             } else {
                 val msg = opened?.optJSONObject("error")?.optString("message")
                     ?: result.exceptionOrNull()?.message
                     ?: (if (t.zh) "打开失败" else "Open failed")
                 manualError = msg
+                state.message = msg
             }
         }
     }
@@ -487,14 +500,78 @@ internal fun AnalyzeTab(
                                 Text("${if (t.zh) "DEX 文件" else "DEX files"}: ${dexFiles?.length() ?: 0}", style = MaterialTheme.typography.bodyMedium)
                             }
                         }
-                        // 原生库列表
+                        // 分析进度和消息（提取 SO 或基础分析时显示）
+                        val apkAnalyzing = state.analyzingSoPath != null && state.analyzingSoPath!!.contains(expandedPath)
+                        if (apkAnalyzing) {
+                            LinearProgressIndicator(Modifier.fillMaxWidth())
+                        }
+                        if (apkAnalyzing || state.detailMessage.isNotBlank()) {
+                            Text(
+                                state.detailMessage.ifBlank { if (t.zh) "正在分析…" else "Analyzing…" },
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (apkAnalyzing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                            )
+                        }
+                        // 原生库列表（可点击提取并分析）
                         if (nativeLibs != null && nativeLibs.length() > 0) {
-                            Text(if (t.zh) "原生库" else "Native Libraries", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(if (t.zh) "原生库（点击分析）" else "Native Libraries (tap to analyze)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                             SurfacePanel {
                                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     (0 until nativeLibs.length()).forEach { i ->
                                         val lib = nativeLibs.optJSONObject(i)
-                                        Text("  ${lib?.optString("name", "?")} (${lib?.optString("abi", "?")}, ${formatBytes(lib?.optLong("size", 0L) ?: 0L)})", style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                                        val libName = lib?.optString("name", "?") ?: "?"
+                                        val libAbi = lib?.optString("abi", "?") ?: "?"
+                                        val libSize = formatBytes(lib?.optLong("size", 0L) ?: 0L)
+                                        val libEntry = lib?.optString("entry", "") ?: ""
+                                        // 用 entry 路径作为唯一 key（同一 APK 内不同 ABI 的同名 SO）
+                                        val analysisKey = if (libEntry.isNotBlank()) "$expandedPath!$libEntry" else ""
+                                        val extractedPath = state.extractedSoPaths[analysisKey]
+                                        Row(
+                                            Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Text("  $libName ($libAbi, $libSize)", style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+                                            TextButton(
+                                                enabled = state.analyzingSoPath == null && state.deepAnalyzingPath == null && analysisKey.isNotBlank(),
+                                                onClick = {
+                                                    if (extractedPath != null && state.perSoDetail[extractedPath] != null) {
+                                                        state.expandedSoPath = extractedPath
+                                                    } else if (extractedPath != null) {
+                                                        launchBasicAnalysis(context, extractedPath, libName, state, scope, t.zh)
+                                                    } else {
+                                                        launchBasicAnalysisFromApk(context, expandedPath, libEntry, libName, state, scope, t.zh)
+                                                    }
+                                                },
+                                            ) {
+                                                Text(
+                                                    when {
+                                                        state.analyzingSoPath == analysisKey -> if (t.zh) "分析中" else "Analyzing"
+                                                        extractedPath != null && state.perSoDetail.containsKey(extractedPath) -> if (t.zh) "查看" else "View"
+                                                        else -> if (t.zh) "分析" else "Analyze"
+                                                    },
+                                                )
+                                            }
+                                            TextButton(
+                                                enabled = state.analyzingSoPath == null && state.deepAnalyzingPath == null && analysisKey.isNotBlank(),
+                                                onClick = {
+                                                    if (extractedPath != null) {
+                                                        startDeepAnalysis(extractedPath)
+                                                    } else {
+                                                        scope.launch {
+                                                            val extracted = withContext(Dispatchers.IO) {
+                                                                extractSoFromApkEntry(context.applicationContext, expandedPath, libEntry)
+                                                            }
+                                                            if (extracted != null) {
+                                                                state.extractedSoPaths = state.extractedSoPaths + (analysisKey to extracted)
+                                                                startDeepAnalysis(extracted)
+                                                            }
+                                                        }
+                                                    }
+                                                },
+                                            ) {
+                                                Text(if (t.zh) "AI 深度分析" else "AI deep analysis")
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -529,6 +606,14 @@ internal fun AnalyzeTab(
                         subtitle = if (t.zh) "ELF 程序基础分析" else "ELF basic analysis",
                         showBack = true,
                         onBack = { state.expandedSoPath = null },
+                        trailing = {
+                            TextButton(
+                                enabled = state.deepAnalyzingPath == null,
+                                onClick = { startDeepAnalysis(expandedPath) },
+                            ) {
+                                Text(if (t.zh) "AI 深度分析" else "AI deep analysis")
+                            }
+                        },
                     )
                     Column(
                         Modifier.fillMaxSize().verticalScroll(rememberScrollState())
@@ -710,7 +795,52 @@ internal fun AnalyzeTab(
                             }
                         }
                         androidx.compose.material3.HorizontalDivider()
-                        // 工作区列表（SO 工作区 + APK 分析结果）
+                        // 当前工作目录信息
+                        val dirDisplay = settings.treeUri?.let { uri ->
+                            uri.toString().substringAfterLast('%2F')
+                                .substringAfterLast('/').substringBefore('?')
+                                .ifBlank { uri.toString().takeLast(30) }
+                        }
+                        if (dirDisplay != null) {
+                            Text(
+                                if (t.zh) "当前目录：$dirDisplay（${state.soSources.size} 个 SO 可分析）" else "Directory: $dirDisplay (${state.soSources.size} SO available)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        // 可用 SO 文件（扫描到但尚未打开为工作区的）
+                        val openedPaths = state.workspaces.map { it.path }.toSet()
+                        val availableSoSources = state.soSources.filter { it.path !in openedPaths }
+                        if (availableSoSources.isNotEmpty()) {
+                            Text(
+                                if (t.zh) "可用 SO 文件 (${availableSoSources.size})" else "Available SO (${availableSoSources.size})",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            availableSoSources.take(15).forEach { src ->
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(src.name, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text("${src.abi} ${src.architecture}/${src.bits} ${formatBytes(src.size)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    TextButton(
+                                        enabled = state.analyzingSoPath == null && state.deepAnalyzingPath == null,
+                                        onClick = {
+                                            showWorkspaces = false
+                                            openSoAndAnalyze(context, src.path, state, scope, t.zh)
+                                        },
+                                    ) { Text(if (t.zh) "打开" else "Open") }
+                                }
+                            }
+                            if (availableSoSources.size > 15) {
+                                Text(
+                                    if (t.zh) "…还有 ${availableSoSources.size - 15} 个，请在分析页查看" else "…${availableSoSources.size - 15} more, see Analyze tab",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        // 已打开的工作区
                         val totalWorkspaces = state.workspaces.size + state.apkResults.size
                         Text(
                             if (t.zh) "已打开的工作区 ($totalWorkspaces)" else "Open workspaces ($totalWorkspaces)",
@@ -719,7 +849,7 @@ internal fun AnalyzeTab(
                         )
                         if (totalWorkspaces == 0) {
                             Text(
-                                if (t.zh) "暂无工作区。手动打开 SO/APK 文件或通过 MCP 工具打开后会显示在这里。" else "No workspaces. Open a SO/APK file manually or via MCP tools to see it here.",
+                                if (t.zh) "暂无工作区。选择文件或点击上方"打开"创建工作区。" else "No workspaces. Pick a file or tap "Open" above.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -750,13 +880,27 @@ internal fun AnalyzeTab(
                                         Text(ws.name, fontWeight = FontWeight.SemiBold)
                                         Text("${ws.architecture}/${ws.bits} ${ws.abi}", style = MaterialTheme.typography.labelSmall)
                                     }
+                                    TextButton(
+                                        enabled = state.analyzingSoPath == null && state.deepAnalyzingPath == null,
+                                        onClick = {
+                                            showWorkspaces = false
+                                            launchWorkspaceAnalysis(context, ws.id, ws.name, state, scope, t.zh)
+                                        },
+                                    ) { Text(if (t.zh) "基础分析" else "Basic") }
+                                    TextButton(
+                                        enabled = state.analyzingSoPath == null && state.deepAnalyzingPath == null,
+                                        onClick = {
+                                            showWorkspaces = false
+                                            startDeepAnalysis(ws.path)
+                                        },
+                                    ) { Text(if (t.zh) "AI 分析" else "AI") }
                                     if (ws.hasLocalAiReport) {
                                         TextButton(onClick = {
                                             DeepReportStore.load(context.applicationContext, ws.id)?.let { snapshot ->
                                                 restoreDeepReport(state, snapshot)
                                                 showWorkspaces = false
                                             }
-                                        }) { Text(if (t.zh) "查看" else "View") }
+                                        }) { Text(if (t.zh) "报告" else "Report") }
                                     }
                                     TextButton(onClick = {
                                         EngineProvider.get(context).close(ws.id)
@@ -779,10 +923,10 @@ internal fun AnalyzeTab(
                                         Text("APK ${entryCount} ${if (t.zh) "条目" else "entries"}, $nativeLibs ${if (t.zh) "原生库" else "libs"}, $dexFiles DEX", style = MaterialTheme.typography.labelSmall)
                                     }
                                     TextButton(onClick = {
-                                        // 查看 APK 分析详情
+                                        // 查看 APK 分析详情（含原生库进一步分析）
                                         state.expandedSoPath = apkPath
                                         showWorkspaces = false
-                                    }) { Text(if (t.zh) "查看" else "View") }
+                                    }) { Text(if (t.zh) "查看分析" else "Analyze") }
                                     TextButton(onClick = {
                                         state.apkResults = state.apkResults - apkPath
                                     }) { Text(if (t.zh) "关闭" else "Close") }

@@ -1,5 +1,6 @@
 package com.soreverse.mcp.core
 
+import android.os.Build
 import java.io.File
 
 /**
@@ -10,17 +11,37 @@ import java.io.File
  */
 object PathSafety {
 
-    /** 允许的根目录列表（路径参数必须解析到其中之一）。 */
-    private val ALLOWED_ROOTS = listOf(
-        "/storage/emulated/0",
-        "/sdcard",
-        "/data/data/com.soreverse.mcp",
-        "/data/user/0/com.soreverse.mcp",
-        "/data/local/tmp",
-        "/data/user/de/0/com.soreverse.mcp",
-        "/data/user/0/com.soreverse.mcp/files",
-        System.getProperty("java.io.tmpdir", "/tmp"),
-    )
+    /**
+     * 允许的根目录列表（路径参数必须解析到其中之一）。
+     *
+     * 使用动态包名构建应用数据目录，避免硬编码包名导致更换包名后路径校验失败。
+     * 包含 cacheDir（SAF 文件选择器复制到的目录）和 filesDir。
+     */
+    private fun appDataRoots(): List<String> {
+        val roots = mutableListOf(
+            "/storage/emulated/0",
+            "/sdcard",
+            "/data/local/tmp",
+            System.getProperty("java.io.tmpdir", "/tmp"),
+        )
+        // 通过反射获取当前应用包名，兼容不同包名（如 com.taffynihe）
+        runCatching {
+            val app = Class.forName("android.app.ActivityThread")
+                .getMethod("currentApplication").invoke(null) as? android.content.Context
+            if (app != null) {
+                roots.add(app.dataDir.absolutePath)
+                roots.add(app.cacheDir.absolutePath)
+                roots.add(app.filesDir.absolutePath)
+                // /data/user/0/<pkg> 形式
+                roots.add("/data/user/0/${app.packageName}")
+                roots.add("/data/data/${app.packageName}")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    roots.add(app.dataDir.absolutePath.replace("/data/user/0/", "/data/user/de/0/"))
+                }
+            }
+        }
+        return roots
+    }
 
     /**
      * 验证路径是否安全（不包含路径穿越，且在允许的目录范围内）。
@@ -36,7 +57,7 @@ object PathSafety {
         // 解析为规范路径
         val canonical = runCatching { File(path).canonicalPath }.getOrNull() ?: return false
         // 检查是否在允许的根目录下
-        val roots = ALLOWED_ROOTS.toMutableList()
+        val roots = appDataRoots().toMutableList()
         if (!workDirPath.isNullOrBlank()) {
             roots.add(File(workDirPath).canonicalPath)
         }
@@ -57,7 +78,7 @@ object PathSafety {
         }
         val canonical = runCatching { File(path).canonicalPath }.getOrNull()
             ?: return "Cannot resolve path: $path"
-        val roots = ALLOWED_ROOTS.toMutableList()
+        val roots = appDataRoots().toMutableList()
         if (!workDirPath.isNullOrBlank()) {
             runCatching { roots.add(File(workDirPath).canonicalPath) }
         }

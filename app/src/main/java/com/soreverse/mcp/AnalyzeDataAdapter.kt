@@ -14,7 +14,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
+import java.util.zip.ZipInputStream
 
 internal fun loadWorkspaces(context: Context): List<WorkspaceUi> {
     val payload = EngineProvider.get(context).listWorkspaces()
@@ -180,6 +182,46 @@ internal fun openSoForUi(context: Context, path: String, zh: Boolean = false): P
 }
 
 /**
+ * 分析已打开的工作区（不会关闭工作区）。
+ *
+ * 与 [openSoForUi] 不同，此函数直接使用已存在的 workspaceId 进行分析，
+ * 不会创建临时工作区也不会在分析后关闭工作区。
+ * 适用于从工作区列表中点击"基础分析"的场景。
+ */
+internal fun analyzeWorkspaceForUi(context: Context, workspaceId: String, zh: Boolean = false): Pair<SoDetailUi?, String> {
+    val engine = EngineProvider.get(context)
+    val listing = engine.listWorkspaces()
+    val items = listing.optJSONArray("items") ?: return null to (if (zh) "无工作区" else "No workspaces")
+    val item = (0 until items.length()).mapNotNull { items.optJSONObject(it) }
+        .firstOrNull { it.optString("workspaceId") == workspaceId }
+        ?: return null to (if (zh) "工作区不存在" else "Workspace not found")
+    val analyzed = engine.analyze(workspaceId, "")
+    if (!analyzed.optBoolean("ok", true)) {
+        return null to analyzed.optJSONObject("error")?.optString("message", (if (zh) "分析失败" else "Analyze failed")).orEmpty()
+    }
+    val overview = analyzed.optJSONObject("overview")
+        ?: analyzed.takeIf { it.has("securityFeatures") || it.has("entropy") || it.has("difficulty") }
+        ?: engine.overview(workspaceId)
+    val detail = SoDetailUi(
+        workspaceId = workspaceId,
+        name = item.optString("soFileName", overview.optString("fileName", "lib.so")),
+        path = item.optString("path"),
+        architecture = item.optString("architecture", overview.optString("architectureCode", "unknown")),
+        bits = item.optInt("bits", overview.optInt("bits", 0)),
+        entryPoint = overview.optString("entryPoint", "0x0"),
+        stripped = analyzed.optBoolean("stripped", overview.optBoolean("stripped", false)),
+        hasDebugInfo = analyzed.optBoolean("hasDebugInfo", overview.optBoolean("hasDebugInfo", false)),
+        hasJniOnLoad = analyzed.optBoolean("hasJniOnLoad", overview.optBoolean("hasJniOnLoad", false)),
+        sectionCount = overview.optInt("sectionCount", 0),
+        symbolCount = overview.optInt("symbolCount", 0),
+        dynsymCount = overview.optInt("dynsymCount", 0),
+        stringCount = overview.optInt("stringCount", 0),
+        overview = overview,
+    )
+    return detail to (if (zh) "已完成 ${detail.name} 的程序基础分析" else "Basic analysis completed for ${detail.name}")
+}
+
+/**
  * 打开并分析用户选择的 APK 文件。
  *
  * 与 [openSoForUi] 对应：SO 文件走 ELF 工作区流程，APK 走独立的 [ApkAnalyzer] 解析流程。
@@ -234,5 +276,65 @@ private fun readApkBytes(context: Context, path: String): ByteArray {
         if (!file.isFile) throw IOException("APK file not found: $path")
         if (file.length() > maxBytes) throw ApkAnalysisLimitException("APK exceeds ${maxBytes / 1024 / 1024} MiB input limit")
         file.readBytes()
+    }
+}
+
+/**
+ * 将 content:// URI（SAF 文件选择器返回）或 file:// URI 复制到应用缓存目录，
+ * 返回本地文件路径。在 UI 层完成复制，避免引擎层 content:// 处理的潜在问题。
+ *
+ * @param context 应用上下文
+ * @param uri SAF 返回的文件 URI
+ * @param suffix 文件后缀（如 ".so"），如果 URI 路径中无法推断后缀则使用此值
+ * @return 缓存文件的绝对路径
+ */
+internal fun copyUriToCacheFile(context: Context, uri: Uri, suffix: String = ".so"): String {
+    // 尝试从 URI 中提取文件名
+    val lastSegment = uri.lastPathSegment
+    val rawName = lastSegment?.substringAfterLast('/')?.substringBefore('?')
+        ?: "picked_${System.currentTimeMillis()}"
+    // 确保有正确的后缀
+    val safeName = if (rawName.contains('.')) rawName else "$rawName$suffix"
+    val tempFile = File(context.cacheDir, "picked_$safeName")
+    context.contentResolver.openInputStream(uri)?.use { input ->
+        FileOutputStream(tempFile).use { output -> input.copyTo(output) }
+    } ?: throw IOException("Cannot open input stream for URI: $uri")
+    AppLog.i("Copied URI to cache: ${tempFile.absolutePath} (${tempFile.length()} bytes)")
+    return tempFile.absolutePath
+}
+
+/**
+ * 从 APK 中提取指定的 SO 条目到缓存目录，返回本地文件路径。
+ *
+ * 用于 APK 详情页中点击原生库进行进一步分析：将 SO 从 APK ZIP 中提取出来，
+ * 然后作为独立的 ELF 文件打开工作区。
+ *
+ * @param context 应用上下文
+ * @param apkPath APK 的路径（content:// URI 或本地路径）
+ * @param entryName APK 内的条目名（如 "lib/arm64-v8a/libfoo.so"）
+ * @return 提取出的 SO 文件的缓存路径，失败返回 null
+ */
+internal fun extractSoFromApkEntry(context: Context, apkPath: String, entryName: String): String? {
+    return try {
+        val apkBytes = readApkBytes(context, apkPath)
+        val soName = entryName.substringAfterLast('/').ifBlank { "extracted.so" }
+        val safeName = if (soName.endsWith(".so", ignoreCase = true)) soName else "$soName.so"
+        val tempFile = File(context.cacheDir, "apk_so_$safeName")
+        ZipInputStream(apkBytes.inputStream()).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                if (entry.name == entryName && !entry.isDirectory) {
+                    FileOutputStream(tempFile).use { output -> zip.copyTo(output) }
+                    AppLog.i("Extracted SO from APK: $entryName -> ${tempFile.absolutePath} (${tempFile.length()} bytes)")
+                    return tempFile.absolutePath
+                }
+                zip.closeEntry()
+            }
+        }
+        AppLog.e("SO entry not found in APK: $entryName")
+        null
+    } catch (e: Exception) {
+        AppLog.e("Failed to extract SO from APK: ${e.message}")
+        null
     }
 }
