@@ -426,7 +426,7 @@ internal fun AnalyzeTab(
                                 fontWeight = FontWeight.SemiBold,
                             )
                             Text(
-                                settings.treeUri?.let { com.soreverse.mcp.core.WorkDirectory.displayPath(it) }
+                                settings.treeUri?.let { com.soreverse.mcp.engine.WorkDirectory.displayPath(it) }
                                     ?: if (settings.useDefaultWorkDir) (if (t.zh) "默认目录" else "Default") else (if (t.zh) "未设置" else "Not set"),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
