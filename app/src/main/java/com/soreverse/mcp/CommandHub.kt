@@ -234,8 +234,14 @@ internal fun CommandHubScreen(
             Modifier.fillMaxWidth().padding(bottom = 14.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
-            QuickStat("73", if (zh) "工具" else "Tools")
-            QuickStat("42", if (zh) "引擎" else "Engines")
+            QuickStat(
+                if (settings.treeUri != null || settings.useDefaultWorkDir) "73" else (if (zh) "无" else "None"),
+                if (zh) "工具" else "Tools",
+            )
+            QuickStat(
+                if (settings.treeUri != null || settings.useDefaultWorkDir) "42" else (if (zh) "无" else "None"),
+                if (zh) "引擎" else "Engines",
+            )
             QuickStat(
                 if (running) (if (zh) "在线" else "On") else (if (zh) "离线" else "Off"),
                 if (zh) "状态" else "State",
@@ -327,10 +333,16 @@ private fun ServiceStatusRow(
 ) {
     val context = LocalContext.current
     val dirConfigured = settings.treeUri != null || settings.useDefaultWorkDir
-    // 桥接状态：检查实际在线状态，而非仅检查是否配置
-    val bridgeState = remember { com.soreverse.mcp.core.ApkMcpBridge(settings).state() }
-    val bridgeOnline = bridgeState.online
+    // 桥接状态：定期轮询，只要有一个在线就显示已连接
+    val bridge = remember { com.soreverse.mcp.core.ApkMcpBridge(settings) }
+    var bridgeOnline by remember { mutableStateOf(bridge.state().online) }
     val bridgeConfigured = settings.apkMcpConfigs.isNotEmpty() || settings.apkMcpUrl.isNotBlank()
+    LaunchedEffect(Unit) {
+        while (true) {
+            bridgeOnline = bridge.state().online
+            delay(3000)
+        }
+    }
     // 保活就绪：wakeLock + floating + tunnelKeepAlive + bootAutoStart 全部开启
     val keepAliveReady = settings.wakeLockEnabled && settings.floatingEnabled &&
         settings.tunnelKeepAlive && settings.bootAutoStart

@@ -414,6 +414,30 @@ internal fun AnalyzeTab(
             title = { Text(if (t.zh) "工作区" else "Workspaces") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // 工作目录选择
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                if (t.zh) "工作目录" else "Work directory",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                settings.treeUri?.let { com.soreverse.mcp.core.WorkDirectory.displayPath(it) }
+                                    ?: if (settings.useDefaultWorkDir) (if (t.zh) "默认目录" else "Default") else (if (t.zh) "未设置" else "Not set"),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        TextButton(onClick = { pickTree.launch(null) }) {
+                            Text(if (t.zh) "选择" else "Choose")
+                        }
+                    }
+                    androidx.compose.material3.HorizontalDivider()
+                    // 工作区列表
                     if (state.workspaces.isEmpty()) {
                         Text(if (t.zh) "暂无通过 MCP 打开的工作区。\n\n工作区是通过 MCP 工具（如 mt_so_open）打开 SO 文件后创建的。程序基础分析不会创建工作区，AI 深度分析会自动创建。" else "No MCP workspaces.\n\nWorkspaces are created when SO files are opened via MCP tools (e.g., mt_so_open). Basic analysis does not create workspaces; AI deep analysis creates them automatically.")
                     } else {

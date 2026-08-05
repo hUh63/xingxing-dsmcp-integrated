@@ -612,6 +612,13 @@ class McpHttpServer(private val context: Context, private val port: Int, private
         if (!settings.authEnabled) return true
         val token = settings.accessToken
         if (token.isBlank()) return true
+        // 本地回环免鉴权：Kotlin SDK Streamable HTTP transport 等客户端
+        // 在 POST 请求时可能不携带 URL 查询参数或 Authorization 头，
+        // 本地回环无网络泄露风险，token 主要保护公网访问。
+        val remoteHost = request.local.remoteHost
+        if (remoteHost == "127.0.0.1" || remoteHost == "0:0:0:0:0:0:0:1" || remoteHost == "::1" || remoteHost == "localhost") {
+            return true
+        }
         // 优先检查 Authorization: Bearer <token> 头部（最安全）
         val auth = request.header("Authorization").orEmpty()
         val bearer = auth.removePrefix("Bearer").trim()
