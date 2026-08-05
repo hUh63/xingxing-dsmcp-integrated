@@ -235,11 +235,11 @@ internal fun CommandHubScreen(
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
             QuickStat(
-                if (settings.treeUri != null || settings.useDefaultWorkDir) "73" else (if (zh) "无" else "None"),
+                "73",
                 if (zh) "工具" else "Tools",
             )
             QuickStat(
-                if (settings.treeUri != null || settings.useDefaultWorkDir) "42" else (if (zh) "无" else "None"),
+                "42",
                 if (zh) "引擎" else "Engines",
             )
             QuickStat(

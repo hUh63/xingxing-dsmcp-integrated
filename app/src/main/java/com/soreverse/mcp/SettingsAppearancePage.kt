@@ -73,6 +73,7 @@ internal fun SettingsAppearancePage(
         GlassGroup(title = if (t.zh) "强调色" else "Accent") {
             ChipRow(
                 listOf(
+                    "pink" to if (t.zh) "粉" else "Pink",
                     "blue" to if (t.zh) "蓝" else "Blue",
                     "teal" to if (t.zh) "青" else "Teal",
                     "indigo" to if (t.zh) "靛" else "Indigo",

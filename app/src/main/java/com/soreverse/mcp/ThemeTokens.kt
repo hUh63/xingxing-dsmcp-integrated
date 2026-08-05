@@ -17,6 +17,7 @@ internal object AppPalette {
     val green = Color(0xFF30D158)
     val orange = Color(0xFFFF9F0A)
     val red = Color(0xFFFF453A)
+    val pink = Color(0xFFFF375F)
     val mono = Color(0xFF8E8E93)
 
     fun accent(name: String, dark: Boolean): Color = when (name) {
@@ -26,6 +27,7 @@ internal object AppPalette {
         "green" -> if (dark) Color(0xFF30D158) else Color(0xFF16A34A)
         "orange" -> if (dark) Color(0xFFFF9F0A) else Color(0xFFEA580C)
         "red" -> if (dark) Color(0xFFFF453A) else Color(0xFFDC2626)
+        "pink" -> if (dark) Color(0xFFFF375F) else Color(0xFFE91E63)
         "mono" -> if (dark) Color(0xFFD1D1D6) else Color(0xFF3A3A3C)
         else -> if (dark) Color(0xFF0A84FF) else Color(0xFF007AFF)
     }
