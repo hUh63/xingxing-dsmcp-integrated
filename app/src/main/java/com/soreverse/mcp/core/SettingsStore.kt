@@ -28,25 +28,6 @@ class SettingsStore(context: Context) {
             }
             prefs.edit().putBoolean("apkDefaultBridgesAdded", true).apply()
         }
-        // 安全修复: 移除 v1.0.12 中强制关闭安全设置的危险迁移逻辑。
-        // 原逻辑会将 bindHost 设为 0.0.0.0 并关闭 authEnabled，导致服务在
-        // 局域网完全暴露且无需认证。现在默认使用安全配置 (127.0.0.1 + 认证开启)，
-        // 用户如需局域网访问可在设置中手动开启。
-        if (!prefs.getBoolean("secureDefaultsApplied_v1_0_18", false)) {
-            // 仅在用户未手动设置过 bindHost 时应用安全默认值
-            val currentBind = prefs.getString("bindHost", null)
-            val currentAuth = prefs.getBoolean("authEnabled_set", false)
-            prefs.edit().apply {
-                if (currentBind == null) putString("bindHost", "127.0.0.1")
-                if (!currentAuth) {
-                    putBoolean("authEnabled", true)
-                    putBoolean("authEnabled_set", true)
-                }
-                putBoolean("secureDefaultsApplied_v1_0_18", true)
-                // 清理旧的迁移标记
-                remove("lanDefaultsRestored_v1_0_12")
-            }.apply()
-        }
     }
 
     var treeUri: Uri?
@@ -77,14 +58,12 @@ class SettingsStore(context: Context) {
         set(value) = prefs.edit().putInt("port", value.coerceIn(1024, 65535)).apply()
 
     var bindHost: String
-        get() = prefs.getString("bindHost", "127.0.0.1") ?: "127.0.0.1"
+        get() = prefs.getString("bindHost", "0.0.0.0") ?: "0.0.0.0"
         set(value) = prefs.edit().putString("bindHost", if (value == "0.0.0.0") "0.0.0.0" else "127.0.0.1").apply()
 
     var authEnabled: Boolean
-        // 安全修复: 默认开启 token 鉴权，防止服务在网络上暴露时被未授权访问。
-        // 本机自用时 AI 客户端需携带 Token；局域网/外网暴露时必须鉴权。
-        get() = prefs.getBoolean("authEnabled", true)
-        set(value) = prefs.edit().putBoolean("authEnabled", value).putBoolean("authEnabled_set", true).apply()
+        get() = prefs.getBoolean("authEnabled", false)
+        set(value) = prefs.edit().putBoolean("authEnabled", value).apply()
 
     var accessToken: String
         get() {
