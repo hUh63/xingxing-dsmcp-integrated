@@ -103,6 +103,32 @@ internal fun SettingsServiceConfigPage(t: UiText, settings: SettingsStore) {
                 })
             }
         }
+        GlassGroup(title = if (t.zh) "网页测试" else "Web test") {
+            val shape = RoundedCornerShape(12.dp)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp)
+                    .clip(shape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), shape)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    if (t.zh) "浏览器测试" else "Browser test",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                PrimaryActionButton(if (t.zh) "打开测试" else "Open test") {
+                    val baseUrl = "http://127.0.0.1:${settings.port}/mcp"
+                    val testUrl = if (settings.authEnabled) "$baseUrl?token=${settings.accessToken}" else baseUrl
+                    openInBrowser(context, testUrl)
+                }
+            }
+        }
         GlassGroup(title = if (t.zh) "全部地址" else "All endpoints") {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 endpoints.forEach { endpoint ->

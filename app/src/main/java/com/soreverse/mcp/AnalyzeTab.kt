@@ -110,8 +110,62 @@ internal fun AnalyzeTab(
             runCatching {
                 context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            // 将 content URI 转为可用的文件路径
+            val path = uri.toString()
+            manualSoPath = path
+            manualError = ""
+            scope.launch {
+                val result = withContext(Dispatchers.IO) {
+                    runCatching { EngineProvider.get(context).open(path, temporary = false) }
+                }
+                val opened = result.getOrNull()
+                if (opened != null && opened.optBoolean("ok", true)) {
+                    manualSoPath = ""
+                    state.workspaces = withContext(Dispatchers.IO) { loadWorkspaces(context.applicationContext) }
+                } else {
+                    val msg = opened?.optJSONObject("error")?.optString("message")
+                        ?: result.exceptionOrNull()?.message
+                        ?: (if (t.zh) "打开失败" else "Open failed")
+                    manualError = msg
+                }
+            }
+        }
+    }
+    val pickSoFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            }
+            settings.treeUri = uri
+            settings.useDefaultWorkDir = false
+            EngineProvider.setWorkDirectory(context, uri)
+            state.scannedTreeUri = null
             manualSoPath = uri.toString()
+            manualError = ""
+            showWorkspaces = false
+        }
+    }
+
+    fun openManualPath() {
+        val path = manualSoPath.trim()
+        if (path.isBlank()) {
+            manualError = if (t.zh) "请输入或选择 SO 文件路径" else "Please enter or pick a SO file path"
+            return
+        }
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching { EngineProvider.get(context).open(path, temporary = false) }
+            }
+            val opened = result.getOrNull()
+            if (opened != null && opened.optBoolean("ok", true)) {
+                manualSoPath = ""
+                manualError = ""
+                state.workspaces = withContext(Dispatchers.IO) { loadWorkspaces(context.applicationContext) }
+            } else {
+                val msg = opened?.optJSONObject("error")?.optString("message")
+                    ?: result.exceptionOrNull()?.message
+                    ?: (if (t.zh) "打开失败" else "Open failed")
+                manualError = msg
+            }
         }
     }
 
@@ -213,7 +267,7 @@ internal fun AnalyzeTab(
         ) {
             Row(Modifier.padding(horizontal = LocalUiMetrics.current.pagePad, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    if (state.scanning) (if (t.zh) "扫描中…" else "Scanning…") else if (state.soSources.isNotEmpty()) (if (t.zh) "共计 ${state.soSources.size} 个 SO 文件" else "${state.soSources.size} SO files") else if (state.scannedTreeUri != null && state.message.isNotBlank()) state.message else (if (t.zh) "选择目录后自动扫描" else "Choose a directory to scan"),
+                    if (state.scanning) (if (t.zh) "扫描中…" else "Scanning…") else if (state.soSources.isNotEmpty()) (if (t.zh) "共计 ${state.soSources.size} 个 SO 文件" else "${state.soSources.size} SO files") else if (state.scannedTreeUri != null && state.message.isNotBlank()) state.message else (if (t.zh) "选择工作区后自动扫描" else "Choose a workspace to scan"),
                     Modifier.weight(1f),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium,
@@ -237,7 +291,7 @@ internal fun AnalyzeTab(
             }
             if (state.soSources.isEmpty()) {
                 Text(
-                    state.message.ifBlank { if (t.zh) "选择目录后会自动扫描 SO 文件。" else "SO files will be scanned automatically after choosing a directory." },
+                    state.message.ifBlank { if (t.zh) "未找到 SO 文件" else "No SO files found" },
                     modifier = Modifier.padding(horizontal = LocalUiMetrics.current.pagePad, vertical = 8.dp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
@@ -427,7 +481,7 @@ internal fun AnalyzeTab(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     // 手动建立工作区
                     Text(
-                        if (t.zh) "手动打开 SO 文件建立工作区" else "Open a SO file to create a workspace",
+                        if (t.zh) "手动建立工作区" else "Create workspace manually",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -435,10 +489,16 @@ internal fun AnalyzeTab(
                         value = manualSoPath,
                         onValueChange = { manualSoPath = it; manualError = "" },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text(if (t.zh) "输入 SO 文件路径或选择文件" else "Enter SO file path or pick", maxLines = 1) },
+                        placeholder = { Text(if (t.zh) "输入 SO 文件路径或文件夹路径" else "Enter SO file or folder path", maxLines = 1) },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         isError = manualError.isNotBlank(),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+                        ),
+                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                            onDone = { openManualPath() },
+                        ),
                         supportingText = if (manualError.isNotBlank()) {
                             { Text(manualError, color = MaterialTheme.colorScheme.error) }
                         } else null,
@@ -450,30 +510,8 @@ internal fun AnalyzeTab(
                         TextButton(onClick = { pickSoFile.launch(arrayOf("*/*")) }) {
                             Text(if (t.zh) "选择文件" else "Pick file")
                         }
-                        TextButton(onClick = {
-                            val path = manualSoPath.trim()
-                            if (path.isBlank()) {
-                                manualError = if (t.zh) "请输入或选择 SO 文件路径" else "Please enter or pick a SO file path"
-                                return@TextButton
-                            }
-                            scope.launch {
-                                val result = withContext(Dispatchers.IO) {
-                                    runCatching { EngineProvider.get(context).open(path, temporary = false) }
-                                }
-                                val opened = result.getOrNull()
-                                if (opened != null && opened.optBoolean("ok", true)) {
-                                    manualSoPath = ""
-                                    manualError = ""
-                                    state.workspaces = withContext(Dispatchers.IO) { loadWorkspaces(context.applicationContext) }
-                                } else {
-                                    val msg = opened?.optJSONObject("error")?.optString("message")
-                                        ?: result.exceptionOrNull()?.message
-                                        ?: (if (t.zh) "打开失败" else "Open failed")
-                                    manualError = msg
-                                }
-                            }
-                        }) {
-                            Text(if (t.zh) "打开" else "Open")
+                        TextButton(onClick = { pickSoFolder.launch(null) }) {
+                            Text(if (t.zh) "选择文件夹" else "Pick folder")
                         }
                     }
                     androidx.compose.material3.HorizontalDivider()
