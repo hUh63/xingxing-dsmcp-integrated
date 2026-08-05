@@ -48,7 +48,7 @@ object ApkBuildTool {
         val now = System.currentTimeMillis()
         val notBefore = Date(now - 24L * 3600 * 1000)
         val notAfter = Date(now + 30L * 365 * 24 * 3600 * 1000)
-        val dn = X500Name("CN=NieHe, O=XuanXing, C=CN")
+        val dn = X500Name("CN=NieHe, O=Taffy, C=CN")
         val builder = JcaX509v3CertificateBuilder(
             dn, BigInteger.valueOf(now), notBefore, notAfter, dn, kp.public,
         )

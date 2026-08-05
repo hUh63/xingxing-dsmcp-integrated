@@ -10,7 +10,7 @@ import java.io.File
 import java.util.zip.ZipFile
 
 /**
- * 玄星逆核: APK/ZIP 资源提取(纯 Java zip)。
+ * 塔菲逆核: APK/ZIP 资源提取(纯 Java zip)。
  *
  * 从 APK 里按路径/前缀/后缀把文件抠出来到工作目录, 方便单独分析。
  * 典型: 抠 lib 下的 so 出来喂给 so_open 或 rizin, 抠 assets 看配置, 抠 classes.dex 反编译。

@@ -261,8 +261,29 @@ class McpHttpServer(private val context: Context, private val port: Int, private
     }
 
     private suspend fun handleJsonRpcPost(call: ApplicationCall) {
+        // 先读取请求体，以便在鉴权失败时也能返回带正确 id 的错误响应
+        val settings = SettingsStore(context)
+        val maxBytes = settings.maxRequestKb * 1024
+        val contentLength = call.request.header("Content-Length")?.toLongOrNull()
+        if (contentLength != null && contentLength > maxBytes) {
+            call.respondText(requestTooLarge(maxBytes).toString(), ContentType.Application.Json, status = HttpStatusCode.PayloadTooLarge)
+            return
+        }
+        val body = call.receiveText()
+        if (body.toByteArray(Charsets.UTF_8).size > maxBytes) {
+            call.respondText(requestTooLarge(maxBytes).toString(), ContentType.Application.Json, status = HttpStatusCode.PayloadTooLarge)
+            return
+        }
+
         if (!call.authorized()) {
-            call.respondText(authError().toString(), ContentType.Application.Json, status = HttpStatusCode.Unauthorized)
+            // 解析请求 id，返回带正确 id 的错误响应，避免客户端无法匹配
+            val reqId = try { JSONObject(body).opt("id") } catch (_: Throwable) { JSONObject.NULL }
+            val errResp = JSONObject()
+                .put("jsonrpc", "2.0")
+                .put("id", reqId ?: JSONObject.NULL)
+                .put("error", JSONObject().put("code", -32001).put("message", "Unauthorized: missing or invalid NieHe token"))
+            call.response.headers.append("WWW-Authenticate", "Bearer")
+            call.respondText(errResp.toString(), ContentType.Application.Json, status = HttpStatusCode.Unauthorized)
             return
         }
 
@@ -276,18 +297,6 @@ class McpHttpServer(private val context: Context, private val port: Int, private
         val now = System.currentTimeMillis()
         sessions.entries.removeIf { now - it.value > SESSION_TIMEOUT_MS }
 
-        val settings = SettingsStore(context)
-        val maxBytes = settings.maxRequestKb * 1024
-        val contentLength = call.request.header("Content-Length")?.toLongOrNull()
-        if (contentLength != null && contentLength > maxBytes) {
-            call.respondText(requestTooLarge(maxBytes).toString(), ContentType.Application.Json, status = HttpStatusCode.PayloadTooLarge)
-            return
-        }
-        val body = call.receiveText()
-        if (body.toByteArray(Charsets.UTF_8).size > maxBytes) {
-            call.respondText(requestTooLarge(maxBytes).toString(), ContentType.Application.Json, status = HttpStatusCode.PayloadTooLarge)
-            return
-        }
         val response = dispatchBody(body)
         // Notifications produce no response body: reply 202 Accepted with an
         // empty body per the MCP streamable-HTTP spec. Sending a JSON-RPC

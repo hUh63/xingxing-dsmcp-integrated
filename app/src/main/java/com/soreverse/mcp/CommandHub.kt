@@ -77,7 +77,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * 玄星逆核 · 命令中枢首页（创新1布局，彻底脱离 SOMCP 原版底部导航范式）。
+ * 塔菲逆核 · 命令中枢首页（创新1布局，彻底脱离 SOMCP 原版底部导航范式）。
  *
  * 交互隐喻：中央"星核"= 引擎启动开关；8 个功能像卫星环绕四周，点击卫星进入对应功能。
  * 底层完全复用现有逻辑：McpForegroundService（启停）/ SettingsStore / filteredEndpoints / EngineProvider。
@@ -166,7 +166,7 @@ internal fun CommandHubScreen(
             Column(Modifier.weight(1f)) {
                 Spacer(Modifier.height(24.dp)) // 下移一行半
                 Text(
-                    if (zh) "玄星逆核" else "XuanXing NieHe",
+                    if (zh) "塔菲逆核" else "Taffy NieHe",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Black,
                     color = Color(0xFF1A73E8),
@@ -197,13 +197,35 @@ internal fun CommandHubScreen(
             )
         }
 
-        // 服务状态行：目录 / APK MCP / 保活（根据配置状态显示）
+        // 服务状态行：目录 / 桥接 / 保活（根据配置状态显示）
         ServiceStatusRow(
             zh = zh,
             settings = settings,
             onNavigateSettings = onNavigateSettings,
             onAnalyze = { onNavigate(MainTab.SoAnalyze, null) },
         )
+
+        // 工具列表入口文本
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(bottom = 6.dp),
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                if (zh) "工具列表" else "Tools",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { onNavigate(MainTab.Analyze, null) }
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+            )
+        }
 
         // 快捷统计
         Row(
@@ -302,7 +324,10 @@ private fun ServiceStatusRow(
     onAnalyze: () -> Unit,
 ) {
     val dirConfigured = settings.treeUri != null || settings.useDefaultWorkDir
-    val apkMcpConfigured = settings.apkMcpConfigs.isNotEmpty() || settings.apkMcpUrl.isNotBlank()
+    // 桥接状态：检查实际在线状态，而非仅检查是否配置
+    val bridgeState = remember { com.soreverse.mcp.core.ApkMcpBridge(settings).state() }
+    val bridgeOnline = bridgeState.online
+    val bridgeConfigured = settings.apkMcpConfigs.isNotEmpty() || settings.apkMcpUrl.isNotBlank()
     // 保活就绪：wakeLock + floating + tunnelKeepAlive + bootAutoStart 全部开启
     val keepAliveReady = settings.wakeLockEnabled && settings.floatingEnabled &&
         settings.tunnelKeepAlive && settings.bootAutoStart
@@ -329,9 +354,9 @@ private fun ServiceStatusRow(
                 modifier = Modifier.weight(1f).fillMaxHeight(),
             )
             ServiceStatusItem(
-                label = "APK MCP",
-                statusText = if (apkMcpConfigured) (if (zh) "已连接" else "Linked") else (if (zh) "未连接" else "None"),
-                configured = apkMcpConfigured,
+                label = if (zh) "桥接" else "Bridge",
+                statusText = if (bridgeOnline) (if (zh) "已连接" else "Linked") else if (bridgeConfigured) (if (zh) "未连接" else "Offline") else (if (zh) "未配置" else "None"),
+                configured = bridgeOnline,
                 onClick = { onNavigateSettings(SettingsDest.ApkBridge) },
                 modifier = Modifier.weight(1f).fillMaxHeight(),
             )

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_title">玄星逆核</string>
+    <string name="app_title">塔菲逆核</string>
     <string name="app_subtitle">本地逆向工具聚合 MCP 网关</string>
     <string name="state">当前状态</string>
     <string name="running">运行中</string>
@@ -31,7 +31,7 @@
     <string name="disclaimer">免责声明</string>
     <string name="disclaimer_body">本工具仅用于你有权分析的文件和设备环境。逆向、修改和分发第三方二进制可能受到法律、合同或平台规则限制，使用者自行承担合规责任。</string>
     <string name="about">关于</string>
-    <string name="about_body">玄星逆核
+    <string name="about_body">塔菲逆核
 本地逆向工具聚合 MCP 网关
 把各类逆向工具聚合成一个 MCP 入口，配合玄星 AI 逆向助手一起用。
 

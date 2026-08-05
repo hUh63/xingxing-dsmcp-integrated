@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_title">玄星逆核</string>
+    <string name="app_title">塔菲逆核</string>
     <string name="app_subtitle">Local reverse-engineering MCP gateway</string>
     <string name="state">Status</string>
     <string name="running">Running</string>
@@ -31,9 +31,9 @@
     <string name="disclaimer">Disclaimer</string>
     <string name="disclaimer_body">Use this tool only with files and devices you are authorized to analyze. Reverse engineering, modification, and redistribution may be restricted by law, contracts, or platform rules.</string>
     <string name="about">About</string>
-    <string name="about_body">玄星逆核 XuanXing NieHe
+    <string name="about_body">塔菲逆核 Taffy NieHe
 Local reverse-engineering MCP gateway
-Aggregates reverse tools into one MCP endpoint, designed to pair with the XuanXing AI reverse assistant.
+Aggregates reverse tools into one MCP endpoint, designed to pair with the Taffy AI reverse assistant.
 
 Group: 【玄星算力】</string>
     <string name="join_qq_group">点击链接加入群聊【玄星算力】</string>

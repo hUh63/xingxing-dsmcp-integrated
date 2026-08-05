@@ -11,7 +11,7 @@ import java.io.File
 import java.util.zip.ZipFile
 
 /**
- * 玄星逆核: 两个 APK 对比(纯 Java: zip + ARSCLib)。
+ * 塔菲逆核: 两个 APK 对比(纯 Java: zip + ARSCLib)。
  *
  * 比较新旧两版差异: 新增/删除/变化的文件条目、权限增减、版本号、组件(可选)。
  * 用途: 看版本更新改了什么、找新增的 so/dex/后门、对比原版与破解版差异。

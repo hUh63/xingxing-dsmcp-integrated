@@ -113,7 +113,7 @@ internal fun HomeTab(
 
     PageScroll {
         ScreenHeader(
-            title = if (t.zh) "玄星逆核" else "XuanXing NieHe",
+            title = if (t.zh) "塔菲逆核" else "Taffy NieHe",
             subtitle = if (t.zh) "本地逆向工具聚合 · 连一个地址即可用全部工具" else "Local reverse-engineering gateway",
         )
 

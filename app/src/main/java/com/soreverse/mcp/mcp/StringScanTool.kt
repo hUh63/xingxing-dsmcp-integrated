@@ -10,7 +10,7 @@ import java.io.File
 import java.util.zip.ZipFile
 
 /**
- * 玄星逆核: 敏感信息扫描(纯 Kotlin, 无外部依赖)。
+ * 塔菲逆核: 敏感信息扫描(纯 Kotlin, 无外部依赖)。
  *
  * 从 APK / DEX / SO / 任意文件里提取可打印字符串, 用正则匹配常见敏感目标:
  * URL / IP / 域名 / 邮箱 / JWT / 私钥头 / 各类云 AK-SK / 疑似密钥密码字段 / 高熵 Base64。

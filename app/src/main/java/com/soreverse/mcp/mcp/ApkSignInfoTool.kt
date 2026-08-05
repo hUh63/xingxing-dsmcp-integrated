@@ -11,7 +11,7 @@ import java.security.MessageDigest
 import java.security.cert.X509Certificate
 
 /**
- * 玄星逆核: APK 签名证书查看(用已有 apksig, 纯 Java)。
+ * 塔菲逆核: APK 签名证书查看(用已有 apksig, 纯 Java)。
  *
  * 读 APK 的 v1/v2/v3/v4 签名方案、签名者证书(主体/颁发者/序列号/有效期)、
  * 证书指纹(MD5/SHA1/SHA256)。用途: 校验签名真伪、拿原包签名指纹(比对是否被二次打包)、

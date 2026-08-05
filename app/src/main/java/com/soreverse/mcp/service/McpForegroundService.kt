@@ -326,7 +326,7 @@ class McpForegroundService : Service() {
                 cornerRadius = 999f
             }
             elevation = 8 * density
-            alpha = 0.96f
+            alpha = 0.85f
         }
         bubbleText = tv
         val type = if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE
@@ -349,7 +349,7 @@ class McpForegroundService : Service() {
         var moved = false
         var downTime = 0L
         val dragThresholdSq = 400f * 400f // 400px² drag threshold
-        val longPressTimeout = 500L
+        val longPressTimeout = 4000L
 
         tv.setOnTouchListener { _, event ->
             when (event.actionMasked) {
@@ -503,7 +503,7 @@ class McpForegroundService : Service() {
                 val p = anim.animatedValue as Float
                 val curW = (fromWidth + (targetSize - fromWidth) * p).toInt().coerceAtLeast(targetSize)
                 val curH = (fromHeight + (targetSize - fromHeight) * p).toInt().coerceAtLeast(targetSize)
-                val curAlpha = fromAlpha + (0.6f - fromAlpha) * p
+                val curAlpha = fromAlpha + (0.45f - fromAlpha) * p
 
                 params.width = curW
                 params.height = curH
@@ -534,7 +534,7 @@ class McpForegroundService : Service() {
                     params.width = targetSize
                     params.height = targetSize
                     tv.text = ""
-                    tv.alpha = 0.6f
+                    tv.alpha = 0.45f
                     tv.setPadding(0, 0, 0, 0)
                     (tv.background as? GradientDrawable)?.apply {
                         setColor(dotColor)
@@ -565,7 +565,7 @@ class McpForegroundService : Service() {
             duration = 250
             addUpdateListener { anim ->
                 val p = anim.animatedValue as Float
-                tv.alpha = 0.6f + (0.96f - 0.6f) * p
+                tv.alpha = 0.45f + (0.85f - 0.45f) * p
 
                 if (p > 0.5f) {
                     val rp = (p - 0.5f) / 0.5f
@@ -586,7 +586,7 @@ class McpForegroundService : Service() {
                     params.width = WindowManager.LayoutParams.WRAP_CONTENT
                     params.height = WindowManager.LayoutParams.WRAP_CONTENT
                     tv.text = statusText
-                    tv.alpha = 0.96f
+                    tv.alpha = 0.85f
                     val padH = (14 * density).toInt()
                     val padV = (9 * density).toInt()
                     tv.setPadding(padH, padV, padH, padV)

@@ -13,13 +13,13 @@ val releaseKeystoreProperties = Properties().apply {
 android {
     // 逆核: namespace(源码包名/JNI 命名空间)保留 com.soreverse.mcp 不动 —— native JNI 函数名
     // 写死 Java_com_soreverse_mcp_...，改了要连 C++ 一起改极易崩且用户看不见。
-    // applicationId(系统/商店识别的真实包名)改成我们自己的 com.xuanxingnihe。
+    // applicationId(系统/商店识别的真实包名)改成我们自己的 com.taffynihe。
     namespace = "com.soreverse.mcp"
     compileSdk = 36
     ndkVersion = "28.2.13676358"
 
     defaultConfig {
-        applicationId = "com.xuanxingnihe"
+        applicationId = "com.taffynihe"
         minSdk = 26
         targetSdk = 36
         versionCode = 11

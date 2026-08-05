@@ -15,7 +15,7 @@ import org.luckypray.dexkit.query.matchers.MethodMatcher
 import java.io.File
 
 /**
- * 玄星逆核: DexKit 反混淆查找(C++ 高性能 dex 解析, 带 arm64 native so)。
+ * 塔菲逆核: DexKit 反混淆查找(C++ 高性能 dex 解析, 带 arm64 native so)。
  *
  * 混淆后的 App 类名/方法名全是 a/b/c, jadx 硬看难定位。DexKit 靠"特征"反查:
  *  - 哪个方法/类 用了某个字符串(如 "sign"/"vip"/"pay") ← 逆向最常用
