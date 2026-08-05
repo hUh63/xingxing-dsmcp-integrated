@@ -147,7 +147,7 @@ internal fun AnalyzeTab(
                         val entryCount = opened.optInt("entryCount", 0)
                         val nativeLibs = opened.optJSONArray("nativeLibraries")?.length() ?: 0
                         val dexFiles = opened.optJSONArray("dexFiles")?.length() ?: 0
-                        val apkName = path.substringAfterLast('%2F').substringAfterLast('/').substringBefore('?').ifBlank { "apk" }
+                        val apkName = path.substringAfterLast("%2F").substringAfterLast('/').substringBefore('?').ifBlank { "apk" }
                         val summary = if (t.zh)
                             "$entryCount 条目, $nativeLibs 原生库, $dexFiles DEX"
                         else
@@ -426,7 +426,7 @@ internal fun AnalyzeTab(
                 state.apkResults.entries.forEachIndexed { idx, (apkPath, apkData) ->
                     item(key = "apk_$apkPath") {
                         GroupDivider()
-                        val apkName = apkPath.substringAfterLast('%2F').substringAfterLast('/').substringBefore('?').ifBlank { "apk" }
+                        val apkName = apkPath.substringAfterLast("%2F").substringAfterLast('/').substringBefore('?').ifBlank { "apk" }
                         val entryCount = apkData.optInt("entryCount", 0)
                         val nativeLibs = apkData.optJSONArray("nativeLibraries")?.length() ?: 0
                         val dexFiles = apkData.optJSONArray("dexFiles")?.length() ?: 0
@@ -456,7 +456,7 @@ internal fun AnalyzeTab(
     state.expandedSoPath?.let { expandedPath ->
         // APK 分析详情
         state.apkResults[expandedPath]?.let { apkData ->
-            val apkName = expandedPath.substringAfterLast('%2F').substringAfterLast('/').substringBefore('?').ifBlank { "apk" }
+            val apkName = expandedPath.substringAfterLast("%2F").substringAfterLast('/').substringBefore('?').ifBlank { "apk" }
             Surface(
                 modifier = Modifier.fillMaxSize().graphicsLayer {
                     translationX = size.width * backProgress
@@ -769,7 +769,7 @@ internal fun AnalyzeTab(
                             }
                             // APK 分析结果列表
                             state.apkResults.forEach { (apkPath, apkData) ->
-                                val apkName = apkPath.substringAfterLast('%2F').substringAfterLast('/').substringBefore('?').ifBlank { "apk" }
+                                val apkName = apkPath.substringAfterLast("%2F").substringAfterLast('/').substringBefore('?').ifBlank { "apk" }
                                 val entryCount = apkData.optInt("entryCount", 0)
                                 val nativeLibs = apkData.optJSONArray("nativeLibraries")?.length() ?: 0
                                 val dexFiles = apkData.optJSONArray("dexFiles")?.length() ?: 0
