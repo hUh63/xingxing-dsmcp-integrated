@@ -32,6 +32,9 @@ import io.ktor.server.routing.options
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import io.ktor.utils.io.writeStringUtf8
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONException
@@ -44,7 +47,7 @@ import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 
 class McpHttpServer(private val context: Context, private val port: Int, private val host: String) : CoroutineScope {
-    override val coroutineContext = kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default
+    override val coroutineContext = SupervisorJob() + Dispatchers.Default
     private val startedAt = System.currentTimeMillis()
     private var engine: EmbeddedServer<*, *>? = null
     @Volatile private var heavyPermits = 1
