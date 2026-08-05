@@ -317,18 +317,18 @@ private fun SoReverseApp() {
         }
     }
     val inSettingsDetail = tab == MainTab.Settings && settingsDest != SettingsDest.Root
-    val inAnalyzeDetail = tab == MainTab.Analyze && (analyzeState.showDeepReport || analyzeState.expandedSoPath != null)
+    val inAnalyzeDetail = (tab == MainTab.Analyze || tab == MainTab.SoAnalyze) && (analyzeState.showDeepReport || analyzeState.expandedSoPath != null)
     val inInternalDetail = inSettingsDetail || inAnalyzeDetail
 
     LaunchedEffect(tab) {
-        if (tab == MainTab.Analyze && analyzeState.restoreDeepReportOnAnalyzeEntry) {
+        if ((tab == MainTab.Analyze || tab == MainTab.SoAnalyze) && analyzeState.restoreDeepReportOnAnalyzeEntry) {
             analyzeState.restoreDeepReportOnAnalyzeEntry = false
             analyzeState.showDeepReport = true
         }
     }
 
     fun requestDeepLeave(action: () -> Unit) {
-        if (tab == MainTab.Analyze && analyzeState.showDeepReport && analyzeState.deepAnalyzingPath != null) {
+        if ((tab == MainTab.Analyze || tab == MainTab.SoAnalyze) && analyzeState.showDeepReport && analyzeState.deepAnalyzingPath != null) {
             pendingDeepLeave = action
         } else {
             action()
@@ -442,6 +442,15 @@ private fun SoReverseApp() {
                                     toolCategory = toolCategory,
                                     onBack = { tab = MainTab.Service; toolCategory = null },
                                 )
+                                MainTab.SoAnalyze -> AnalyzeTab(
+                                    t = t,
+                                    settings = settings,
+                                    state = analyzeState,
+                                    scope = appScope,
+                                    deepService = deepService,
+                                    backProgress = backProgress,
+                                    onLeaveDeepReport = { requestDeepLeave { analyzeState.showDeepReport = false } },
+                                )
                                 MainTab.Logs -> LogsTab(t = t, settings = settings, onBack = { tab = MainTab.Service })
                                 MainTab.Settings -> SettingsHub(
                                     modifier = Modifier,
@@ -525,7 +534,7 @@ private fun SoReverseApp() {
                     dismissButton = {
                         TextButton(onClick = {
                             pendingDeepLeave = null
-                            analyzeState.restoreDeepReportOnAnalyzeEntry = tab == MainTab.Analyze
+                            analyzeState.restoreDeepReportOnAnalyzeEntry = tab == MainTab.Analyze || tab == MainTab.SoAnalyze
                             leave()
                         }) { Text(if (t.zh) "后台继续" else "Continue in background") }
                     },

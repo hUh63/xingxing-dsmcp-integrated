@@ -30,8 +30,6 @@ import com.soreverse.mcp.core.NetworkInspector
 import com.soreverse.mcp.core.SettingsStore
 import com.soreverse.mcp.mcp.McpHttpServer
 import java.util.Locale
-import kotlin.math.abs
-import kotlin.math.sqrt
 
 class McpForegroundService : Service() {
     private var server: McpHttpServer? = null
@@ -46,6 +44,7 @@ class McpForegroundService : Service() {
     private var autoSnapRunnable: Runnable? = null
     private var longPressRunnable: Runnable? = null
     private var floatingParams: WindowManager.LayoutParams? = null
+    private var isCollapsed = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -54,26 +53,40 @@ class McpForegroundService : Service() {
         when (action) {
             ACTION_START -> startServer()
             ACTION_STOP -> {
-                // Flip running=false the moment we receive the explicit STOP
-                // intent, BEFORE stopSelf() schedules onDestroy(). The window
-                // between stopSelf() and onDestroy() used to be tens of
-                // milliseconds during which `running` was still true and
-                // stopRequested was still false, so an in-flight keepalive
-                // health probe that failed in that window would re-enter
-                // tunnel.start() and spawn a fresh cloudflared child against
-                // a Service Context that was mid-teardown — a race that
-                // showed up as the app process getting killed when the user
-                // toggled the MCP master switch off. Setting running=false
-                // AND calling CloudflareTunnelManager.requestStop() here
-                // synchronously mirrors what onDestroy() does on both gates,
-                // so the two paths form a redundant gate and the window
-                // collapses to zero.
                 running = false
                 runCatching { server?.tunnel?.requestStop() }
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
+                val sv = server
+                server = null
+                currentServer = null
+                Thread({
+                    try { sv?.tunnel?.stop() } catch (e: Throwable) { AppLog.e("tunnel.stop() during ACTION_STOP", e) }
+                    try { sv?.stop() } catch (e: Throwable) { AppLog.e("server.stop() during ACTION_STOP", e) }
+                }, "mcp-stop").apply { isDaemon = true }.start()
+                activePort = -1
+                activeHost = ""
+                val settings = SettingsStore(this)
+                if (settings.floatingEnabled && Settings.canDrawOverlays(this)) {
+                    // 保活模式：停止 MCP 服务但保留悬浮窗，显示"服务未启动"
+                    createChannel()
+                    val zh = settings.language == "zh" || (settings.language == "system" && Locale.getDefault().language == "zh")
+                    startForeground(1001, notification(if (zh) "逆核保活中 · 服务未启动" else "NieHe keep-alive · service off"))
+                    updateFloating()
+                    AppLog.i("MCP server stopped, keeping service alive for floating window")
+                } else {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
+                }
             }
-            ACTION_REFRESH_FLOATING -> updateFloating()
+            ACTION_REFRESH_FLOATING -> {
+                val settings = SettingsStore(this)
+                if (server == null && settings.floatingEnabled && Settings.canDrawOverlays(this)) {
+                    // 服务未运行但悬浮窗已开启：启动前台服务保活
+                    createChannel()
+                    val zh = settings.language == "zh" || (settings.language == "system" && Locale.getDefault().language == "zh")
+                    startForeground(1001, notification(if (zh) "逆核保活中 · 服务未启动" else "NieHe keep-alive · service off"))
+                }
+                updateFloating()
+            }
         }
         return START_STICKY
     }
@@ -288,12 +301,19 @@ class McpForegroundService : Service() {
             removeFloating()
             return
         }
-        if (floating != null) return
+        if (floating != null) {
+            // 悬浮窗已存在，仅更新状态文字
+            updateFloatingStatus()
+            return
+        }
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         val zh = settings.language == "zh" || (settings.language == "system" && Locale.getDefault().language == "zh")
         val density = resources.displayMetrics.density
+        val isRunning = running
+        val statusText = if (isRunning) (if (zh) "● 逆核运行中" else "● NieHe running") else (if (zh) "● 服务未启动" else "● Service off")
+        val dotColor = if (isRunning) Color.argb(255, 52, 199, 89) else Color.argb(255, 255, 149, 0)
         val tv = TextView(this).apply {
-            text = if (zh) "● 逆核运行中" else "● NieHe running"
+            text = statusText
             setTextColor(Color.WHITE)
             textSize = 11f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -330,35 +350,6 @@ class McpForegroundService : Service() {
         var downTime = 0L
         val dragThresholdSq = 400f * 400f // 400px² drag threshold
         val longPressTimeout = 500L
-        val autoSnapDelay = 3000L
-
-        fun cancelScheduled() {
-            longPressRunnable?.let { mainHandler.removeCallbacks(it) }
-            longPressRunnable = null
-            autoSnapRunnable?.let { mainHandler.removeCallbacks(it) }
-            autoSnapRunnable = null
-        }
-
-        fun scheduleAutoSnap() {
-            autoSnapRunnable?.let { mainHandler.removeCallbacks(it) }
-            val snap = Runnable {
-                if (floating == null) return@Runnable
-                val width = resources.displayMetrics.widthPixels
-                val centerX = params.x + tv.width / 2
-                val targetX = if (centerX > width / 2) width - tv.width else 0
-                val fromX = params.x
-                val anim = ValueAnimator.ofInt(fromX, targetX).apply {
-                    duration = 280
-                    addUpdateListener {
-                        params.x = it.animatedValue as Int
-                        windowManager?.updateViewLayout(tv, params)
-                    }
-                    start()
-                }
-            }
-            autoSnapRunnable = snap
-            mainHandler.postDelayed(snap, autoSnapDelay)
-        }
 
         tv.setOnTouchListener { _, event ->
             when (event.actionMasked) {
@@ -371,15 +362,17 @@ class McpForegroundService : Service() {
                     downTime = System.currentTimeMillis()
                     moved = false
                     cancelScheduled()
-                    // Schedule long press: if still held after 500ms without moving, stop MCP
-                    val lp = Runnable {
-                        if (!moved) {
-                            AppLog.i("Floating long press: stopping MCP service")
-                            stop(this)
+                    if (!isCollapsed) {
+                        // Schedule long press: if still held after 500ms without moving, stop MCP
+                        val lp = Runnable {
+                            if (!moved) {
+                                AppLog.i("Floating long press: stopping MCP service")
+                                stop(this)
+                            }
                         }
+                        longPressRunnable = lp
+                        mainHandler.postDelayed(lp, longPressTimeout)
                     }
-                    longPressRunnable = lp
-                    mainHandler.postDelayed(lp, longPressTimeout)
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -388,7 +381,6 @@ class McpForegroundService : Service() {
                     val distSq = deltaX * deltaX + deltaY * deltaY
                     if (!moved && distSq > dragThresholdSq) {
                         moved = true
-                        // Exceeded drag threshold — cancel long press
                         longPressRunnable?.let { mainHandler.removeCallbacks(it) }
                         longPressRunnable = null
                     }
@@ -403,17 +395,20 @@ class McpForegroundService : Service() {
                     cancelScheduled()
                     tv.animate().scaleX(1f).scaleY(1f).setInterpolator(OvershootInterpolator()).setDuration(260).start()
                     val elapsed = System.currentTimeMillis() - downTime
-                    if (moved) {
-                        // Drag release — snap to edge immediately
+                    if (isCollapsed) {
+                        // 折叠态：点击展开恢复
+                        if (!moved) expandFromBubble()
+                    } else if (moved) {
+                        // 拖拽释放 — 立即贴边
                         val width = resources.displayMetrics.widthPixels
                         params.x = if (params.x > width / 2) width - tv.width else 0
                         windowManager?.updateViewLayout(tv, params)
+                        scheduleAutoSnap()
                     } else if (elapsed < longPressTimeout) {
-                        // Tap (<500ms): open MainActivity
+                        // 点击 (<500ms)：打开 MainActivity
                         launchMainActivity()
+                        scheduleAutoSnap()
                     }
-                    // If elapsed >= 500ms but moved==false, long press already fired
-                    scheduleAutoSnap()
                     true
                 }
                 MotionEvent.ACTION_CANCEL -> {
@@ -431,6 +426,185 @@ class McpForegroundService : Service() {
         AppLog.i("Floating window shown")
     }
 
+    private fun cancelScheduled() {
+        longPressRunnable?.let { mainHandler.removeCallbacks(it) }
+        longPressRunnable = null
+        autoSnapRunnable?.let { mainHandler.removeCallbacks(it) }
+        autoSnapRunnable = null
+    }
+
+    private fun scheduleAutoSnap() {
+        autoSnapRunnable?.let { mainHandler.removeCallbacks(it) }
+        val tv = bubbleText ?: return
+        val params = floatingParams ?: return
+        val snap = Runnable {
+            if (floating == null) return@Runnable
+            val width = resources.displayMetrics.widthPixels
+            val centerX = params.x + tv.width / 2
+            val targetX = if (centerX > width / 2) width - tv.width else 0
+            val fromX = params.x
+            ValueAnimator.ofInt(fromX, targetX).apply {
+                duration = 280
+                addUpdateListener {
+                    params.x = it.animatedValue as Int
+                    runCatching { windowManager?.updateViewLayout(tv, params) }
+                }
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        collapseToBubble()
+                    }
+                })
+                start()
+            }
+        }
+        autoSnapRunnable = snap
+        mainHandler.postDelayed(snap, AUTO_SNAP_DELAY)
+    }
+
+    private fun updateFloatingStatus() {
+        val tv = bubbleText ?: return
+        val settings = SettingsStore(this)
+        val zh = settings.language == "zh" || (settings.language == "system" && Locale.getDefault().language == "zh")
+        val isRunning = running
+        val statusText = if (isRunning) (if (zh) "● 逆核运行中" else "● NieHe running") else (if (zh) "● 服务未启动" else "● Service off")
+        val dotColor = if (isRunning) Color.argb(255, 52, 199, 89) else Color.argb(255, 255, 149, 0)
+
+        if (isCollapsed) {
+            // 折叠态：只更新悬浮球颜色（状态点）
+            (tv.background as? GradientDrawable)?.setColor(dotColor)
+        } else {
+            tv.text = statusText
+        }
+    }
+
+    private fun collapseToBubble() {
+        if (isCollapsed || floating == null || bubbleText == null || floatingParams == null) return
+        isCollapsed = true
+
+        val tv = bubbleText!!
+        val params = floatingParams!!
+        val density = resources.displayMetrics.density
+        val targetSize = (BUBBLE_SIZE_DP * density).toInt()
+        val settings = SettingsStore(this)
+        val isRunning = running
+        val dotColor = if (isRunning) Color.argb(255, 52, 199, 89) else Color.argb(255, 255, 149, 0)
+
+        // 停止脉冲动画
+        pulseAnimator?.cancel()
+        pulseAnimator = null
+
+        val fromWidth = tv.width.coerceAtLeast(1)
+        val fromHeight = tv.height.coerceAtLeast(1)
+        val fromAlpha = tv.alpha
+
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 300
+            addUpdateListener { anim ->
+                val p = anim.animatedValue as Float
+                val curW = (fromWidth + (targetSize - fromWidth) * p).toInt().coerceAtLeast(targetSize)
+                val curH = (fromHeight + (targetSize - fromHeight) * p).toInt().coerceAtLeast(targetSize)
+                val curAlpha = fromAlpha + (0.6f - fromAlpha) * p
+
+                params.width = curW
+                params.height = curH
+                tv.alpha = curAlpha
+
+                // 后半段渐隐文字
+                if (p > 0.4f) tv.text = ""
+
+                // 后半段从深色背景渐变到状态点颜色
+                val blend = ((p - 0.5f) / 0.5f).coerceIn(0f, 1f)
+                val targetR = if (isRunning) 52 else 255
+                val targetG = if (isRunning) 199 else 149
+                val targetB = if (isRunning) 89 else 0
+                val bgR = (24 + (targetR - 24) * blend).toInt()
+                val bgG = (30 + (targetG - 30) * blend).toInt()
+                val bgB = (42 + (targetB - 42) * blend).toInt()
+                val bgA = (238 + (255 - 238) * blend).toInt()
+                (tv.background as? GradientDrawable)?.apply {
+                    setColor(Color.argb(bgA, bgR, bgG, bgB))
+                    cornerRadius = 999f
+                    if (p > 0.5f) setStroke(0, Color.TRANSPARENT)
+                }
+                tv.setPadding(0, 0, 0, 0)
+                runCatching { windowManager?.updateViewLayout(tv, params) }
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    params.width = targetSize
+                    params.height = targetSize
+                    tv.text = ""
+                    tv.alpha = 0.6f
+                    tv.setPadding(0, 0, 0, 0)
+                    (tv.background as? GradientDrawable)?.apply {
+                        setColor(dotColor)
+                        cornerRadius = targetSize / 2f
+                        setStroke(0, Color.TRANSPARENT)
+                    }
+                    runCatching { windowManager?.updateViewLayout(tv, params) }
+                    AppLog.i("Floating collapsed to bubble")
+                }
+            })
+            start()
+        }
+    }
+
+    private fun expandFromBubble() {
+        if (!isCollapsed || floating == null || bubbleText == null || floatingParams == null) return
+        isCollapsed = false
+
+        val tv = bubbleText!!
+        val params = floatingParams!!
+        val density = resources.displayMetrics.density
+        val settings = SettingsStore(this)
+        val zh = settings.language == "zh" || (settings.language == "system" && Locale.getDefault().language == "zh")
+        val isRunning = running
+        val statusText = if (isRunning) (if (zh) "● 逆核运行中" else "● NieHe running") else (if (zh) "● 服务未启动" else "● Service off")
+
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 250
+            addUpdateListener { anim ->
+                val p = anim.animatedValue as Float
+                tv.alpha = 0.6f + (0.96f - 0.6f) * p
+
+                if (p > 0.5f) {
+                    val rp = (p - 0.5f) / 0.5f
+                    tv.text = statusText
+                    val padH = (14 * density * rp).toInt()
+                    val padV = (9 * density * rp).toInt()
+                    tv.setPadding(padH, padV, padH, padV)
+                }
+
+                (tv.background as? GradientDrawable)?.apply {
+                    setColor(Color.argb(238, 24, 30, 42))
+                    setStroke((1 * density).toInt(), Color.argb(110, 255, 255, 255))
+                    cornerRadius = 999f
+                }
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    params.width = WindowManager.LayoutParams.WRAP_CONTENT
+                    params.height = WindowManager.LayoutParams.WRAP_CONTENT
+                    tv.text = statusText
+                    tv.alpha = 0.96f
+                    val padH = (14 * density).toInt()
+                    val padV = (9 * density).toInt()
+                    tv.setPadding(padH, padV, padH, padV)
+                    (tv.background as? GradientDrawable)?.apply {
+                        setColor(Color.argb(238, 24, 30, 42))
+                        setStroke((1 * density).toInt(), Color.argb(110, 255, 255, 255))
+                        cornerRadius = 999f
+                    }
+                    runCatching { windowManager?.updateViewLayout(tv, params) }
+                    startPulse(tv)
+                    scheduleAutoSnap()
+                    AppLog.i("Floating expanded from bubble")
+                }
+            })
+            start()
+        }
+    }
+
     private fun launchMainActivity() {
         val intent = Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -442,11 +616,14 @@ class McpForegroundService : Service() {
     }
 
     private fun removeFloating() {
+        cancelScheduled()
         pulseAnimator?.cancel()
         pulseAnimator = null
         floating?.let { runCatching { windowManager?.removeView(it) } }
         floating = null
         bubbleText = null
+        floatingParams = null
+        isCollapsed = false
     }
 
     private fun startPulse(view: View) {
@@ -499,6 +676,8 @@ class McpForegroundService : Service() {
         const val ACTION_STOP = "com.soreverse.mcp.STOP"
         const val ACTION_REFRESH_FLOATING = "com.soreverse.mcp.FLOATING"
         private const val CHANNEL_ID = "so_reverse_mcp"
+        private const val AUTO_SNAP_DELAY = 3000L
+        private const val BUBBLE_SIZE_DP = 36
         @Volatile private var running: Boolean = false
         @Volatile var currentServer: McpHttpServer? = null
             private set

@@ -2,9 +2,13 @@ package com.soreverse.mcp
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Code
@@ -14,6 +18,7 @@ import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
@@ -26,10 +31,13 @@ import com.soreverse.mcp.mcp.ToolCatalog
  * 逆核 工具页 — 把所有内置 MCP 工具按分类列给用户看,小白能看懂每个工具干嘛。
  * 数据来源 ToolCatalog.ALL(每个工具的中文/英文说明就是 meta.zh / meta.en)。
  *
- * @param toolCategory 若非 null，则只展示该分类的工具（从首页卫星按钮跳转时使用）。
+ * @param toolCategory 若非 null，滚动定位到该分类位置（不过滤，仍显示所有工具）。
  */
 @Composable
 internal fun ToolsTab(t: UiText, settings: SettingsStore, toolCategory: String? = null, onBack: (() -> Unit)? = null) {
+    val listState = rememberLazyListState()
+    val metrics = LocalUiMetrics.current
+
     // 分类 → 中文标题 + 图标(顺序即展示顺序;未列出的分类归到"更多")
     val categoryMeta: Map<String, Pair<String, ImageVector>> = linkedMapOf(
         "workspace" to ((if (t.zh) "打开文件 / APK" else "Open / APK") to Icons.Filled.DataObject),
@@ -49,53 +57,61 @@ internal fun ToolsTab(t: UiText, settings: SettingsStore, toolCategory: String? 
     // 按 category 归组,顺序按 categoryMeta 出现顺序,其余归"更多"
     val grouped = ToolCatalog.ALL.groupBy { it.meta.category }
 
-    // 从首页卫星跳转时，确定要展示的分类集合
-    // analyze 分类附带 workspace（SO 分析需要先打开文件）
-    val visibleCategories: Set<String>? = toolCategory?.let { cat ->
-        when (cat) {
-            "analyze" -> setOf("analyze", "workspace")
-            else -> setOf(cat)
+    // 构建所有可见分类列表（不做过滤，全部展示）
+    val allCategories = mutableListOf<String>()
+    val shownCategories = mutableSetOf<String>()
+    for ((cat, _) in categoryMeta) {
+        if (grouped.containsKey(cat)) {
+            allCategories.add(cat)
+            shownCategories.add(cat)
+        }
+    }
+    val rest = grouped.filterKeys { it !in shownCategories }
+    for ((cat, _) in rest) {
+        allCategories.add(cat)
+    }
+
+    // 分类 → LazyColumn item index 映射（item 0 = header, 之后依次是各分类）
+    val categoryToIndex = allCategories.mapIndexed { index, _ -> index + 1 }
+
+    // 从首页卫星跳转时，滚动到对应分类位置
+    LaunchedEffect(toolCategory, allCategories) {
+        if (toolCategory != null) {
+            val catIndex = allCategories.indexOf(toolCategory)
+            if (catIndex >= 0) {
+                listState.animateScrollToItem(catIndex + 1)
+            }
         }
     }
 
-    // 标题：过滤模式下显示对应分类名
-    val filteredTitle: String? = toolCategory?.let { cat ->
-        when (cat) {
-            "decompile" -> if (t.zh) "反编译 / 反汇编" else "Decompile"
-            "dynamic" -> if (t.zh) "动态插桩 (Frida / 脱壳)" else "Dynamic (Frida / Unpack)"
-            "analyze" -> if (t.zh) "SO 分析" else "SO Analysis"
-            "emulate" -> if (t.zh) "模拟执行" else "Emulate"
-            "build" -> if (t.zh) "构建 / 回编" else "Build / Rebuild"
-            else -> cat
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = metrics.pagePad, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(metrics.sectionGap),
+    ) {
+        // 标题
+        item(key = "header") {
+            ScreenHeader(
+                title = if (t.zh) "工具" else "Tools",
+                subtitle = if (toolCategory != null) {
+                    if (t.zh) "从首页跳转 · 滑动查看全部 ${ToolCatalog.ALL.size} 个工具" else "Jumped from home · scroll for all ${ToolCatalog.ALL.size} tools"
+                } else {
+                    if (t.zh) "共 ${ToolCatalog.ALL.size} 个工具 · AI 通过 MCP 自动调用" else "${ToolCatalog.ALL.size} tools · called by AI via MCP"
+                },
+                showBack = onBack != null,
+                onBack = onBack,
+            )
         }
-    }
 
-    PageScroll {
-        ScreenHeader(
-            title = filteredTitle ?: (if (t.zh) "工具" else "Tools"),
-            subtitle = if (toolCategory != null) {
-                if (t.zh) "从首页跳转 · AI 通过 MCP 自动调用" else "Jumped from home · called by AI via MCP"
-            } else {
-                if (t.zh) "共 ${ToolCatalog.ALL.size} 个工具 · AI 通过 MCP 自动调用" else "${ToolCatalog.ALL.size} tools · called by AI via MCP"
-            },
-            showBack = onBack != null,
-            onBack = onBack,
-        )
-
-        // 已知分类按定义顺序展示
-        val shownCategories = mutableSetOf<String>()
-        for ((cat, meta) in categoryMeta) {
-            // 过滤模式下跳过不在 visibleCategories 中的分类
-            if (visibleCategories != null && cat !in visibleCategories) continue
-            val tools = grouped[cat] ?: continue
-            shownCategories += cat
-            ToolCategoryGroup(cat = cat, title = meta.first, icon = meta.second, tools = tools, zh = t.zh)
-        }
-        // 其余未归类的分类（过滤模式下跳过）
-        if (visibleCategories == null) {
-            val rest = grouped.filterKeys { it !in shownCategories }
-            for ((cat, tools) in rest) {
-                ToolCategoryGroup(cat = cat, title = cat, icon = Icons.Filled.Extension, tools = tools, zh = t.zh)
+        // 所有分类（不过滤）
+        for (cat in allCategories) {
+            item(key = "cat-$cat") {
+                val meta = categoryMeta[cat]
+                val title = meta?.first ?: cat
+                val icon = meta?.second ?: Icons.Filled.Extension
+                val tools = grouped[cat] ?: emptyList()
+                ToolCategoryGroup(cat = cat, title = title, icon = icon, tools = tools, zh = t.zh)
             }
         }
     }

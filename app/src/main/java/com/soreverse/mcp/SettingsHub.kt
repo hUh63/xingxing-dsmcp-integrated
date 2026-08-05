@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -157,17 +160,17 @@ internal fun SettingsHub(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(if (t.zh) "常用" else "Essentials", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SettingsTile(if (t.zh) "服务配置" else "Service", if (t.zh) "目录 / 端口 / 地址 / 工具" else "Directory / port / URLs / tools", Icons.Default.Settings, MaterialTheme.colorScheme.primary, { onDest(SettingsDest.ServiceConfig) }, Modifier.weight(1f))
-                    SettingsTile(if (t.zh) "外观" else "Look", if (t.zh) "主题 / 强调色 / 密度" else "Theme / accent / density", Icons.Default.Tune, AppPalette.indigo, { onDest(SettingsDest.Appearance) }, Modifier.weight(1f))
+                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SettingsTile(if (t.zh) "服务配置" else "Service", if (t.zh) "目录 / 端口 / 地址 / 工具" else "Directory / port / URLs / tools", Icons.Default.Settings, MaterialTheme.colorScheme.primary, { onDest(SettingsDest.ServiceConfig) }, Modifier.weight(1f).fillMaxHeight())
+                    SettingsTile(if (t.zh) "外观" else "Look", if (t.zh) "主题 / 强调色 / 密度" else "Theme / accent / density", Icons.Default.Tune, AppPalette.indigo, { onDest(SettingsDest.Appearance) }, Modifier.weight(1f).fillMaxHeight())
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SettingsTile(if (t.zh) "AI 深度分析" else "AI Deep", if (t.zh) "端点 / Key / 模型" else "Endpoint / key / model", Icons.Default.Memory, AppPalette.indigo, { onDest(SettingsDest.AiDeep) }, Modifier.weight(1f))
-                    SettingsTile(if (t.zh) "保活" else "Keep-alive", if (t.zh) "唤醒锁 / 自启" else "Wake lock / boot", Icons.Default.PowerSettingsNew, AppPalette.green, { onDest(SettingsDest.KeepAlive) }, Modifier.weight(1f))
+                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SettingsTile(if (t.zh) "AI 深度分析" else "AI Deep", if (t.zh) "端点 / Key / 模型" else "Endpoint / key / model", Icons.Default.Memory, AppPalette.indigo, { onDest(SettingsDest.AiDeep) }, Modifier.weight(1f).fillMaxHeight())
+                    SettingsTile(if (t.zh) "保活" else "Keep-alive", if (t.zh) "唤醒锁 / 自启" else "Wake lock / boot", Icons.Default.PowerSettingsNew, AppPalette.green, { onDest(SettingsDest.KeepAlive) }, Modifier.weight(1f).fillMaxHeight())
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SettingsTile("APK MCP", if (t.zh) "MT 管理器协同" else "MT Manager bridge", Icons.Default.Link, AppPalette.orange, { onDest(SettingsDest.ApkBridge) }, Modifier.weight(1f))
-                    SettingsTile(if (t.zh) "隧道" else "Tunnel", if (t.zh) "公网暴露 / 保活" else "Public expose", Icons.Default.Cloud, AppPalette.purple, { onDest(SettingsDest.Tunnel) }, Modifier.weight(1f))
+                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SettingsTile("APK MCP", if (t.zh) "MT 管理器协同" else "MT Manager bridge", Icons.Default.Link, AppPalette.orange, { onDest(SettingsDest.ApkBridge) }, Modifier.weight(1f).fillMaxHeight())
+                    SettingsTile(if (t.zh) "隧道" else "Tunnel", if (t.zh) "公网暴露 / 保活" else "Public expose", Icons.Default.Cloud, AppPalette.purple, { onDest(SettingsDest.Tunnel) }, Modifier.weight(1f).fillMaxHeight())
                 }
                 Text(if (t.zh) "引擎" else "Engine", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
                 SurfacePanel {

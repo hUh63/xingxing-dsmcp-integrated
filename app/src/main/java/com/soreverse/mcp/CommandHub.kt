@@ -22,9 +22,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -134,16 +136,16 @@ internal fun CommandHubScreen(
     }
 
     // 8 个卫星节点（顺时针，从正上方开始）
-    // 反编译、脱壳、SO分析、模拟、Frida、回编跳转到工具页（不带分类过滤）
+    // 反编译、脱壳、SO分析、模拟、Frida、回编跳转到工具页对应位置（滚动定位，不过滤）
     val zh = t.zh
     val sats = remember(zh) {
         listOf(
-            Satellite("📖", if (zh) "反编译" else "Decompile", MainTab.Analyze, null),
-            Satellite("🔓", if (zh) "脱壳" else "Unpack", MainTab.Analyze, null),
-            Satellite("🧬", if (zh) "SO 分析" else "SO", MainTab.Analyze, null),
-            Satellite("⚡", if (zh) "模拟" else "Emulate", MainTab.Analyze, null),
-            Satellite("🎯", "Frida", MainTab.Analyze, null),
-            Satellite("📦", if (zh) "回编" else "Rebuild", MainTab.Analyze, null),
+            Satellite("📖", if (zh) "反编译" else "Decompile", MainTab.Analyze, "decompile"),
+            Satellite("🔓", if (zh) "脱壳" else "Unpack", MainTab.Analyze, "dynamic"),
+            Satellite("🧬", if (zh) "SO 分析" else "SO", MainTab.SoAnalyze, null),
+            Satellite("⚡", if (zh) "模拟" else "Emulate", MainTab.Analyze, "emulate"),
+            Satellite("🎯", "Frida", MainTab.Analyze, "dynamic"),
+            Satellite("📦", if (zh) "回编" else "Rebuild", MainTab.Analyze, "build"),
             Satellite("📡", if (zh) "日志" else "Logs", MainTab.Logs),
             Satellite("⚙️", if (zh) "设置" else "Settings", MainTab.Settings),
         )
@@ -200,7 +202,7 @@ internal fun CommandHubScreen(
             zh = zh,
             settings = settings,
             onNavigateSettings = onNavigateSettings,
-            onAnalyze = { onNavigate(MainTab.Analyze, null) },
+            onAnalyze = { onNavigate(MainTab.SoAnalyze, null) },
         )
 
         // 快捷统计
@@ -314,9 +316,9 @@ private fun ServiceStatusRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        // 三个状态卡片
+        // 三个状态卡片 — 使用 IntrinsicSize.Min 保证等高
         Row(
-            Modifier.weight(1f),
+            Modifier.weight(1f).height(IntrinsicSize.Min),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             ServiceStatusItem(
@@ -324,21 +326,21 @@ private fun ServiceStatusRow(
                 statusText = if (dirConfigured) (if (zh) "已设置" else "Set") else (if (zh) "未设置" else "Not Set"),
                 configured = dirConfigured,
                 onClick = { onNavigateSettings(SettingsDest.ServiceConfig) },
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
             )
             ServiceStatusItem(
                 label = "APK MCP",
                 statusText = if (apkMcpConfigured) (if (zh) "已连接" else "Linked") else (if (zh) "未连接" else "None"),
                 configured = apkMcpConfigured,
                 onClick = { onNavigateSettings(SettingsDest.ApkBridge) },
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
             )
             ServiceStatusItem(
                 label = if (zh) "保活" else "KeepAlive",
                 statusText = if (keepAliveReady) (if (zh) "已就绪" else "Ready") else (if (zh) "未就绪" else "Off"),
                 configured = keepAliveReady,
                 onClick = { onNavigateSettings(SettingsDest.KeepAlive) },
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
             )
         }
         // 右侧独立分析按钮
@@ -410,6 +412,8 @@ private fun ServiceStatusItem(
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
         Text(

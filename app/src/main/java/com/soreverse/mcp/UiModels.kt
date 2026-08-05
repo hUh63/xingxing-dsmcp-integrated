@@ -8,7 +8,7 @@ import com.soreverse.mcp.core.RikkaPart
 import kotlinx.coroutines.Job
 import org.json.JSONObject
 
-internal enum class MainTab { Service, Analyze, Logs, Settings }
+internal enum class MainTab { Service, Analyze, SoAnalyze, Logs, Settings }
 internal enum class SetupTarget { Directory, ApkMcp, KeepAlive }
 internal enum class SettingsDest {
     Root, ServiceConfig, Appearance, KeepAlive, Access, Limits, Export, Audit, Blutter, Tunnel, ApkBridge, AiDeep, Updates, Probe, ToolStats, TunnelStats, Instructions, Credits, Disclaimer, About, BackupRestore
