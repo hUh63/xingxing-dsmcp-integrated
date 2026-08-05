@@ -23,6 +23,8 @@ internal data class WorkspaceUi(
     val bits: Int,
     val temporary: Boolean,
     val hasLocalAiReport: Boolean,
+    val isApk: Boolean = false,
+    val apkSummary: String = "",
 )
 
 internal data class SoSourceUi(
@@ -86,6 +88,8 @@ internal class AnalyzeUiState {
     var deepMessages by mutableStateOf<List<DeepChatMessage>>(emptyList())
     var restoreDeepReportOnAnalyzeEntry by mutableStateOf(false)
     var deepJob: Job? = null
+    /** 手动打开的 APK 分析结果，以 path 为 key。与 ELF 工作区不同，APK 不走引擎工作区流程。 */
+    var apkResults by mutableStateOf<Map<String, JSONObject>>(emptyMap())
 }
 
 internal data class UiText(
