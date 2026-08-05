@@ -451,6 +451,7 @@ private fun ServiceStatusRow(
                 fontWeight = FontWeight.Medium,
             )
         }
+        }
     }
 }
 
