@@ -797,7 +797,7 @@ internal fun AnalyzeTab(
                         androidx.compose.material3.HorizontalDivider()
                         // 当前工作目录信息
                         val dirDisplay = settings.treeUri?.let { uri ->
-                            uri.toString().substringAfterLast('%2F')
+                            uri.toString().substringAfterLast("%2F")
                                 .substringAfterLast('/').substringBefore('?')
                                 .ifBlank { uri.toString().takeLast(30) }
                         }
