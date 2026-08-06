@@ -849,7 +849,7 @@ internal fun AnalyzeTab(
                         )
                         if (totalWorkspaces == 0) {
                             Text(
-                                if (t.zh) "暂无工作区。选择文件或点击上方"打开"创建工作区。" else "No workspaces. Pick a file or tap "Open" above.",
+                                if (t.zh) "暂无工作区。选择文件或点击上方「打开」创建工作区。" else "No workspaces. Pick a file or tap 'Open' above.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

@@ -4,6 +4,7 @@ import android.content.Context
 import com.soreverse.mcp.core.DeepAnalysisEvent
 import com.soreverse.mcp.core.DeepAnalysisService
 import com.soreverse.mcp.core.DeepReportStore
+import com.soreverse.mcp.core.EngineProvider
 import com.soreverse.mcp.core.RikkaPart
 import com.soreverse.mcp.core.SettingsStore
 import com.soreverse.mcp.service.McpForegroundService
